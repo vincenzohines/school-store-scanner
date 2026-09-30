@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>School Store Inventory Scanner</title>
+    
+    <!-- Mobile App Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Store Scanner">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="mobile-web-app-capable" content="yes">
+
+    <!-- Load Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Load Html5Qrcode library for barcode scanning -->
+    <!-- Using a specific version for stability -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+    <!-- Load FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+
+        #reader {
+            width: 100%;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            /* Important: Ensure the reader container has a defined minimum height */
+            min-height: 250px; 
+        }
+
+        /* Override html5-qrcode default styling if necessary */
+        #reader__dashboard_section_csr span {
+            color: #374151; /* Tailwind gray-700 */
+        }
+        
+        #reader__dashboard_section_swaplink {
+            color: #3b82f6; /* Tailwind blue-500 */
+            text-decoration: underline;
+        }
+
+        /* Styling for the toast notification */
+        .toast {
+            visibility: hidden;
+            min-width: 250px;
+            margin-left: -125px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 8px;
+            padding: 16px;
+            position: fixed;
+            z-index: 50;
+            left: 50%;
+            bottom: 30px;
+            font-size: 17px;
+            opacity: 0;
+            transition: opacity 0.3s, bottom 0.3s, visibility 0.3s;
+        }
+
+        .toast.show {
+            visibility: visible;
+            opacity: 1;
+            bottom: 50px;
+        }
+    </style>
+</head>
+<body class="text-gray-800 antialiased h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-blue-600 text-white shadow-md p-4 sticky top-0 z-10 flex justify-between items-center">
+        <h1 class="text-xl font-bold flex items-center gap-2">
+            <i class="fas fa-store"></i> School Store Scanner
+        </h1>
+        <div class="flex gap-2">
+            <!-- Navigation buttons to toggle between Scanner and Inventory views -->
+            <button id="nav-scanner" class="px-3 py-1 bg-blue-700 rounded-md hover:bg-blue-800 transition font-medium text-sm">
+                <i class="fas fa-camera"></i> Scan
+            </button>
+            <button id="nav-inventory" class="px-3 py-1 bg-blue-500 rounded-md hover:bg-blue-700 transition font-medium text-sm">
+                <i class="fas fa-boxes"></i> Inventory
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow flex flex-col p-4 max-w-3xl mx-auto w-full gap-4">
+        
+        <!-- View 1: Scanner Section -->
+        <section id="view-scanner" class="flex flex-col gap-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h2 class="text-lg font-semibold mb-3 flex justify-between items-center text-gray-700">
+                    <span><i class="fas fa-qrcode mr-2"></i>Scan Barcode</span>
+                    <button id="toggle-camera-btn" class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded border transition">
+                        <i class="fas fa-play mr-1"></i> Start Camera
+                    </button>
+                </h2>
+                
+                <!-- The container where the camera feed will be rendered -->
+                <div id="reader" class="mb-4"></div>
+                
+                <!-- Feedback area for recent scans -->
+                <div id="scan-feedback" class="hidden bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg relative" role="alert">
+                    <strong class="font-bold">Success!</strong>
+                    <span class="block sm:inline" id="last-scanned-code"></span>
+                </div>
+            </div>
+
+            <!-- Manual Entry Section (Fallback) -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h2 class="text-lg font-semibold mb-3 text-gray-700"><i class="fas fa-keyboard mr-2"></i>Manual Entry</h2>
+                <form id="manual-add-form" class="flex gap-2">
+                    <input type="text" id="manual-barcode" placeholder="Enter barcode / item name..." class="flex-grow p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition">
+                        Add
+                    </button>
+                </form>
+            </div>
+
+            <!-- Google Form Integration Settings -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mt-4">
+                <h2 class="text-lg font-semibold mb-2 text-gray-700 flex items-center justify-between cursor-pointer" id="toggle-settings">
+                    <span><i class="fas fa-cog mr-2"></i>Google Sheets Sync</span>
+                    <i class="fas fa-chevron-down transition-transform" id="settings-chevron"></i>
+                </h2>
+                
+                <div id="settings-content" class="hidden flex-col gap-3 mt-3 pt-3 border-t">
+                    <p class="text-sm text-gray-600 mb-2">
+                        To send scans directly to a Google Sheet:
+                        <ol class="list-decimal ml-5 text-xs text-gray-600 space-y-1 mt-1">
+                            <li>Create a Google Form with one "Short Answer" question.</li>
+                            <li>Go to Responses -> Link to Sheets.</li>
+                            <li>Click the 3 dots in the top right -> Get pre-filled link.</li>
+                            <li>Enter a dummy answer (e.g., "TEST") and click Get Link -> Copy Link.</li>
+                            <li>Paste that full URL below.</li>
+                        </ol>
+                    </p>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs font-medium text-gray-700">Pre-filled Google Form URL</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="google-form-url" placeholder="https://docs.google.com/forms/d/e/.../viewform?usp=pp_url&entry.12345=TEST" class="flex-grow p-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <button id="save-settings-btn" class="bg-gray-800 text-white px-3 py-2 rounded-md hover:bg-gray-900 transition text-sm whitespace-nowrap">Save</button>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 mt-2">
+                        <input type="checkbox" id="sync-enabled" class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
+                        <label for="sync-enabled" class="text-sm text-gray-700">Enable automatic syncing to Google Sheets</label>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- View 2: Inventory Section -->
+        <section id="view-inventory" class="hidden flex-col gap-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex-grow flex flex-col h-full">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-gray-800"><i class="fas fa-clipboard-list mr-2"></i>Current Inventory</h2>
+                    <div class="flex gap-2">
+                        <button id="export-csv-btn" class="text-sm bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded transition shadow-sm flex items-center gap-1">
+                            <i class="fas fa-download"></i> Export CSV
+                        </button>
+                        <button id="clear-all-btn" class="text-sm bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded transition shadow-sm flex items-center gap-1 border border-red-200">
+                            <i class="fas fa-trash-alt"></i> Clear All
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Search/Filter -->
+                <div class="mb-4 relative">
+                    <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                    <input type="text" id="search-inventory" placeholder="Search inventory..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <!-- Inventory Table/List -->
+                <div class="overflow-x-auto border rounded-lg flex-grow">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-gray-50 border-b">
+                            <tr>
+                                <th class="p-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Item / Barcode</th>
+                                <th class="p-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-center w-24">Qty</th>
+                                <th class="p-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right w-20">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventory-list" class="divide-y divide-gray-200 bg-white">
+                            <!-- Inventory items will be injected here via JavaScript -->
+                            <tr>
+                                <td colspan="3" class="p-4 text-center text-gray-500 italic">Inventory is loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Summary Stats -->
+                <div class="mt-4 pt-4 border-t text-sm text-gray-600 flex justify-between">
+                    <span>Total Unique Items: <strong id="total-unique-items">0</strong></span>
+                    <span>Total Quantity: <strong id="total-quantity">0</strong></span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal for adding/editing item details -->
+    <div id="item-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4 backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 transform transition-all scale-95 opacity-0" id="item-modal-content">
+            <h3 class="text-xl font-bold mb-4 text-gray-800 border-b pb-2" id="modal-title">Item Details</h3>
+            
+            <form id="item-details-form" class="space-y-4">
+                <input type="hidden" id="modal-original-barcode">
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Barcode / ID</label>
+                    <input type="text" id="modal-barcode" class="w-full p-2 bg-gray-100 border border-gray-300 rounded-md font-mono text-sm" readonly>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Item Name <span class="text-red-500">*</span></label>
+                    <input type="text" id="modal-name" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none" required placeholder="e.g., #2 Pencils (12-pack)">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Category (Optional)</label>
+                    <input type="text" id="modal-category" list="category-options" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="e.g., Supplies, Apparel, Snacks">
+                    <datalist id="category-options">
+                        <option value="Supplies">
+                        <option value="Apparel">
+                        <option value="Snacks">
+                        <option value="Electronics">
+                    </datalist>
+                </div>
+
+                <div class="flex gap-4">
+                    <div class="w-1/2">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                        <div class="flex items-center">
+                            <button type="button" id="modal-qty-minus" class="px-3 py-2 bg-gray-200 border border-gray-300 rounded-l-md hover:bg-gray-300">-</button>
+                            <input type="number" id="modal-qty" class="w-full p-2 border-y border-gray-300 text-center focus:outline-none" min="1" required>
+                            <button type="button" id="modal-qty-plus" class="px-3 py-2 bg-gray-200 border border-gray-300 rounded-r-md hover:bg-gray-300">+</button>
+                        </div>
+                    </div>
+                    <div class="w-1/2">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Price ($) (Opt)</label>
+                        <input type="number" id="modal-price" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none" min="0" step="0.01" placeholder="0.00">
+                    </div>
+                </div>
+
+                <div class="mt-6 flex justify-end gap-2 pt-4 border-t">
+                    <button type="button" id="modal-cancel" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition shadow-sm">Save Details</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">Message goes here</div>
+
+    <script>
+        // --- State Management ---
+        // Inventory data structure: { "barcode_string": { name, qty, category, price, dateAdded } }
+        let inventory = {};
+        const STORAGE_KEY = 'school_store_inventory';
+        const SETTINGS_KEY = 'school_store_settings';
+        let html5QrcodeScanner = null;
+        let isScannerRunning = false;
+        
+        // Settings State
+        let appSettings = {
+            googleFormUrl: '',
+            syncEnabled: false
+        };
+
+        // --- Utility Functions ---
+        
+        // Show brief notification
+        function showToast(message, duration = 3000) {
+            const toast = document.getElementById("toast");
+            toast.textContent = message;
+            toast.className = "toast show";
+            setTimeout(() => { toast.className = toast.className.replace("show", ""); }, duration);
+        }
+
+        // Load data from LocalStorage
+        function loadInventory() {
+            try {
+                const stored = localStorage.getItem(STORAGE_KEY);
+                if (stored) {
+                    inventory = JSON.parse(stored);
+                }
+                
+                const storedSettings = localStorage.getItem(SETTINGS_KEY);
+                if (storedSettings) {
+                    appSettings = JSON.parse(storedSettings);
+                    document.getElementById('google-form-url').value = appSettings.googleFormUrl || '';
+                    document.getElementById('sync-enabled').checked = appSettings.syncEnabled || false;
+                }
+            } catch (e) {
+                console.error("Error loading data:", e);
+                showToast("Failed to load saved data");
+                inventory = {};
+            }
+            renderInventory();
+        }
+
+        // Save data to LocalStorage
+        function saveInventory() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory));
+                renderInventory();
+            } catch (e) {
+                console.error("Error saving inventory:", e);
+                showToast("Failed to save inventory (Storage might be full)");
+            }
+        }
+
+        // Play a short beep sound (using Web Audio API, no external files)
+        function playBeep() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                
+                oscillator.type = 'sine';
+                oscillator.frequency.value = 800; // Hz
+                
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); // Volume
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.1);
+            } catch (e) {
+                console.log("Audio not supported or permitted");
+            }
+        }
+
+        // --- Google Forms Integration ---
+        function submitToGoogleForms(barcode) {
+            if (!appSettings.syncEnabled || !appSettings.googleFormUrl) return;
+
+            try {
+                // We need to parse the provided pre-filled URL to extract the entry ID and base URL
+                const url = new URL(appSettings.googleFormUrl);
+                
+                // Change /viewform to /formResponse to allow programmatic submission
+                let baseUrl = url.origin + url.pathname.replace('/viewform', '/formResponse');
+                
+                // Find the entry ID parameter (starts with entry.)
+                let entryParamKey = null;
+                for (const [key, value] of url.searchParams.entries()) {
+                    if (key.startsWith('entry.')) {
+                        entryParamKey = key;
+                        break;
+                    }
+                }
+
+                if (!entryParamKey) {
+                    console.error("Could not find an 'entry.' parameter in the URL");
+                    showToast("Invalid Google Form URL format. Check settings.");
+                    return;
+                }
+
+                // Construct the submission URL. We use GET with URL parameters for simplicity 
+                // in this client-side only context.
+                const submitUrl = `${baseUrl}?${entryParamKey}=${encodeURIComponent(barcode)}&submit=Submit`;
+
+                // Create a hidden iframe to submit the form silently to bypass CORS restrictions
+                // that a normal fetch() might encounter when posting to Google Forms from a different domain.
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                iframe.src = submitUrl;
+                
+                // Add to body, then remove after a delay to clean up
+                document.body.appendChild(iframe);
+                setTimeout(() => {
+                    document.body.removeChild(iframe);
+                }, 3000);
+
+                console.log("Background sync triggered for:", barcode);
+
+            } catch (error) {
+                console.error("Error submitting to Google Forms:", error);
+                showToast("Failed to sync to cloud.");
+            }
+        }
+
+
+        // --- Inventory Core Logic ---
+
+        // Handle a successfully scanned or manually entered code
+        function handleBarcodeResult(decodedText) {
+            playBeep();
+            
+            // Show feedback in UI
+            const feedbackEl = document.getElementById('scan-feedback');
+            const codeEl = document.getElementById('last-scanned-code');
+            codeEl.textContent = `Scanned: ${decodedText}`;
+            feedbackEl.classList.remove('hidden');
+            
+            // Hide feedback after 3 seconds
+            setTimeout(() => {
+                feedbackEl.classList.add('hidden');
+            }, 3000);
+
+            // Add or increment inventory
+            if (inventory[decodedText]) {
+                // Item exists, increment quantity
+                inventory[decodedText].qty += 1;
+                inventory[decodedText].lastUpdated = new Date().toISOString();
+                showToast(`Increased quantity for ${inventory[decodedText].name || decodedText}`);
+                saveInventory();
+            } else {
+                // New item
+                inventory[decodedText] = {
+                    name: '', // Empty initially, prompt user to fill
+                    qty: 1,
+                    category: '',
+                    price: 0,
+                    dateAdded: new Date().toISOString(),
+                    lastUpdated: new Date().toISOString()
+                };
+                saveInventory();
+                showToast(`New item added: ${decodedText}`);
+                // Immediately open modal for new items so they can name it
+                openItemModal(decodedText);
+            }
+            
+            submitToGoogleForms(decodedText);
+        }
+
+        // Remove item completely
+        function deleteItem(barcode) {
+            // Using a simple confirm instead of a complex custom modal for brevity in this specific destructive action, 
+            // though the prompt asked to avoid confirm(). I will use a custom implementation below to strictly adhere.
+            
+            // Custom confirmation logic
+            const overlay = document.createElement('div');
+            overlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+            overlay.innerHTML = `
+                <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full">
+                    <h3 class="text-lg font-bold text-red-600 mb-2">Confirm Delete</h3>
+                    <p class="text-gray-700 mb-4">Are you sure you want to remove this item completely from inventory?</p>
+                    <div class="flex justify-end gap-2">
+                        <button id="cancel-del" class="px-4 py-2 border rounded hover:bg-gray-100">Cancel</button>
+                        <button id="confirm-del" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Delete</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+            
+            document.getElementById('cancel-del').onclick = () => overlay.remove();
+            document.getElementById('confirm-del').onclick = () => {
+                delete inventory[barcode];
+                saveInventory();
+                showToast("Item removed");
+                overlay.remove();
+            };
+        }
+
+        // Adjust quantity directly from list
+        function adjustQuantity(barcode, delta) {
+            if (inventory[barcode]) {
+                const newQty = inventory[barcode].qty + delta;
+                if (newQty > 0) {
+                    inventory[barcode].qty = newQty;
+                } else if (newQty === 0) {
+                     inventory[barcode].qty = 0;
+                }
+                inventory[barcode].lastUpdated = new Date().toISOString();
+                saveInventory();
+            }
+        }
+
+
+        // --- UI Rendering ---
+
+        function renderInventory() {
+            const listEl = document.getElementById('inventory-list');
+            const searchTerm = document.getElementById('search-inventory').value.toLowerCase();
+            
+            listEl.innerHTML = '';
+            
+            let totalUnique = 0;
+            let totalQty = 0;
+
+            const entries = Object.entries(inventory);
+            
+            if (entries.length === 0) {
+                listEl.innerHTML = `<tr><td colspan="3" class="p-8 text-center text-gray-500">
+                    <i class="fas fa-box-open text-3xl mb-2 block text-gray-300"></i>
+                    Inventory is empty. Start scanning to add items.
+                </td></tr>`;
+            } else {
+                // Filter and sort (newest updated first)
+                const filteredEntries = entries
+                    .filter(([barcode, data]) => {
+                        const searchString = `${barcode} ${data.name || ''} ${data.category || ''}`.toLowerCase();
+                        return searchString.includes(searchTerm);
+                    })
+                    .sort((a, b) => new Date(b[1].lastUpdated) - new Date(a[1].lastUpdated));
+
+                if (filteredEntries.length === 0) {
+                     listEl.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-500">No items match your search.</td></tr>`;
+                }
+
+                filteredEntries.forEach(([barcode, data]) => {
+                    totalUnique++;
+                    totalQty += data.qty;
+
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-blue-50 transition-colors group';
+                    
+                    const displayName = data.name ? data.name : `<span class="italic text-gray-400">Unnamed Item</span>`;
+                    const displayCategory = data.category ? `<span class="inline-block bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full mt-1">${data.category}</span>` : '';
+                    const displayPrice = data.price ? `<span class="text-xs text-green-600 font-medium ml-2">$${parseFloat(data.price).toFixed(2)}</span>` : '';
+
+                    tr.innerHTML = `
+                        <td class="p-3 border-b">
+                            <div class="font-medium text-gray-800 cursor-pointer hover:text-blue-600 edit-trigger" data-barcode="${barcode}">
+                                ${displayName} ${displayPrice}
+                            </div>
+                            <div class="text-xs text-gray-500 font-mono mt-0.5">${barcode}</div>
+                            ${displayCategory}
+                        </td>
+                        <td class="p-3 border-b text-center align-middle">
+                            <div class="flex items-center justify-center bg-gray-100 rounded-md overflow-hidden border border-gray-200 inline-flex">
+                                <button class="qty-btn-minus px-2 py-1 text-gray-600 hover:bg-gray-200 hover:text-gray-900 transition" data-barcode="${barcode}">-</button>
+                                <span class="w-8 text-center font-semibold text-gray-800 text-sm">${data.qty}</span>
+                                <button class="qty-btn-plus px-2 py-1 text-gray-600 hover:bg-gray-200 hover:text-gray-900 transition" data-barcode="${barcode}">+</button>
+                            </div>
+                        </td>
+                        <td class="p-3 border-b text-right align-middle">
+                            <button class="text-blue-500 hover:text-blue-700 p-1.5 edit-trigger transition" data-barcode="${barcode}" title="Edit details">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="text-red-400 hover:text-red-600 p-1.5 del-btn transition" data-barcode="${barcode}" title="Remove item">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </td>
+                    `;
+                    listEl.appendChild(tr);
+                });
+            }
+
+            // Update stats
+            document.getElementById('total-unique-items').textContent = totalUnique;
+            document.getElementById('total-quantity').textContent = totalQty;
+
+            // Attach event listeners to generated dynamic buttons
+            document.querySelectorAll('.qty-btn-minus').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    adjustQuantity(e.target.dataset.barcode, -1);
+                });
+            });
+            document.querySelectorAll('.qty-btn-plus').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    adjustQuantity(e.target.dataset.barcode, 1);
+                });
+            });
+            document.querySelectorAll('.del-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteItem(e.currentTarget.dataset.barcode);
+                });
+            });
+            document.querySelectorAll('.edit-trigger').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const barcode = e.currentTarget.dataset.barcode || el.closest('tr').querySelector('.edit-trigger').dataset.barcode;
+                    openItemModal(barcode);
+                });
+            });
+        }
+
+
+        // --- Modal Handling ---
+        const modal = document.getElementById('item-modal');
+        const modalContent = document.getElementById('item-modal-content');
+        
+        function openItemModal(barcode) {
+            const item = inventory[barcode];
+            if (!item) return;
+
+            document.getElementById('modal-original-barcode').value = barcode;
+            document.getElementById('modal-barcode').value = barcode;
+            document.getElementById('modal-name').value = item.name || '';
+            document.getElementById('modal-category').value = item.category || '';
+            document.getElementById('modal-qty').value = item.qty;
+            document.getElementById('modal-price').value = item.price || '';
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            
+            // Animation trick
+            setTimeout(() => {
+                modalContent.classList.remove('scale-95', 'opacity-0');
+                modalContent.classList.add('scale-100', 'opacity-100');
+            }, 10);
+
+            // Focus on name input if it's new
+            if (!item.name) {
+                document.getElementById('modal-name').focus();
+            }
+        }
+
+        function closeItemModal() {
+            modalContent.classList.remove('scale-100', 'opacity-100');
+            modalContent.classList.add('scale-95', 'opacity-0');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 200); // match transition duration
+        }
+
+        // Modal Form Submit
+        document.getElementById('item-details-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const barcode = document.getElementById('modal-original-barcode').value;
+            
+            if (inventory[barcode]) {
+                inventory[barcode].name = document.getElementById('modal-name').value;
+                inventory[barcode].category = document.getElementById('modal-category').value;
+                inventory[barcode].qty = parseInt(document.getElementById('modal-qty').value, 10);
+                
+                const priceVal = document.getElementById('modal-price').value;
+                inventory[barcode].price = priceVal ? parseFloat(priceVal) : 0;
+                
+                inventory[barcode].lastUpdated = new Date().toISOString();
+                
+                saveInventory();
+                showToast("Item details saved");
+                closeItemModal();
+            }
+        });
+
+        document.getElementById('modal-cancel').addEventListener('click', closeItemModal);
+        
+        // Modal Qty buttons
+        document.getElementById('modal-qty-minus').addEventListener('click', () => {
+            const input = document.getElementById('modal-qty');
+            if (input.value > 0) input.value = parseInt(input.value) - 1;
+        });
+        document.getElementById('modal-qty-plus').addEventListener('click', () => {
+            const input = document.getElementById('modal-qty');
+            input.value = parseInt(input.value) + 1;
+        });
+
+        // Close modal on outside click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeItemModal();
+            }
+        });
+
+        // --- Export to CSV ---
+        function exportToCSV() {
+            if (Object.keys(inventory).length === 0) {
+                showToast("Inventory is empty");
+                return;
+            }
+
+            let csvContent = "data:text/csv;charset=utf-8,";
+            // Header
+            csvContent += "Barcode,Item Name,Category,Quantity,Price,Last Updated\n";
+
+            for (const [barcode, data] of Object.entries(inventory)) {
+                // Escape quotes and wrap strings in quotes to handle commas within fields
+                const name = `"${(data.name || '').replace(/"/g, '""')}"`;
+                const category = `"${(data.category || '').replace(/"/g, '""')}"`;
+                const date = new Date(data.lastUpdated).toLocaleDateString();
+                
+                const row = `${barcode},${name},${category},${data.qty},${data.price || 0},${date}`;
+                csvContent += row + "\n";
+            }
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            
+            const dateStr = new Date().toISOString().split('T')[0];
+            link.setAttribute("download", `school_store_inventory_${dateStr}.csv`);
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast("CSV Exported!");
+        }
+
+        document.getElementById('export-csv-btn').addEventListener('click', exportToCSV);
+
+        // --- Clear All ---
+        document.getElementById('clear-all-btn').addEventListener('click', () => {
+             const overlay = document.createElement('div');
+            overlay.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 backdrop-blur-sm';
+            overlay.innerHTML = `
+                <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full border-t-4 border-red-500">
+                    <div class="flex items-center gap-3 mb-4 text-red-600">
+                        <i class="fas fa-exclamation-triangle text-3xl"></i>
+                        <h3 class="text-xl font-bold">Wipe Inventory?</h3>
+                    </div>
+                    <p class="text-gray-700 mb-6">This action will permanently delete ALL items from your local storage. This cannot be undone.</p>
+                    <div class="flex justify-end gap-3">
+                        <button id="cancel-wipe" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-100 font-medium">Cancel</button>
+                        <button id="confirm-wipe" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium shadow-md">Yes, Wipe Data</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+            
+            document.getElementById('cancel-wipe').onclick = () => overlay.remove();
+            document.getElementById('confirm-wipe').onclick = () => {
+                inventory = {};
+                saveInventory();
+                showToast("All inventory data cleared");
+                overlay.remove();
+            };
+        });
+        
+        // Settings UI Logic
+        const settingsToggle = document.getElementById('toggle-settings');
+        const settingsContent = document.getElementById('settings-content');
+        const settingsChevron = document.getElementById('settings-chevron');
+        
+        settingsToggle.addEventListener('click', () => {
+            settingsContent.classList.toggle('hidden');
+            settingsContent.classList.toggle('flex');
+            settingsChevron.classList.toggle('rotate-180');
+        });
+
+        document.getElementById('save-settings-btn').addEventListener('click', () => {
+            appSettings.googleFormUrl = document.getElementById('google-form-url').value.trim();
+            appSettings.syncEnabled = document.getElementById('sync-enabled').checked;
+            
+            if (appSettings.syncEnabled && !appSettings.googleFormUrl.includes('entry.')) {
+                showToast("URL doesn't look right. Please ensure it's the 'Pre-filled' link.");
+                return;
+            }
+            
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify(appSettings));
+            showToast("Settings saved!");
+            
+            // Close settings accordion
+            settingsContent.classList.add('hidden');
+            settingsContent.classList.remove('flex');
+            settingsChevron.classList.remove('rotate-180');
+        });
+        
+        document.getElementById('sync-enabled').addEventListener('change', (e) => {
+            appSettings.syncEnabled = e.target.checked;
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify(appSettings));
+            if (e.target.checked && !appSettings.googleFormUrl) {
+                showToast("Remember to add your Google Form URL!");
+            }
+        });
+
+        // Search listener
+        document.getElementById('search-inventory').addEventListener('input', renderInventory);
+
+        // Manual entry form
+        document.getElementById('manual-add-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const input = document.getElementById('manual-barcode');
+            const val = input.value.trim();
+            if (val) {
+                handleBarcodeResult(val);
+                input.value = ''; // clear input
+            }
+        });
+
+
+
+        // --- Barcode Scanner Setup ---
+        
+        function onScanSuccess(decodedText, decodedResult) {
+            // Prevent multiple rapid scans of the same item
+            // html5-qrcode already has some debouncing, but we'll pause scanning briefly
+            if (isScannerRunning) {
+                handleBarcodeResult(decodedText);
+            }
+        }
+
+        function onScanFailure(error) {
+            // handle scan failure, usually better to ignore and keep scanning
+            // console.warn(`Code scan error = ${error}`);
+        }
+
+        function startScanner() {
+            const btn = document.getElementById('toggle-camera-btn');
+            
+            if (!html5QrcodeScanner) {
+                // Initialize for the first time
+                // Use a lower fps and qrbox size for better performance on mobile
+                html5QrcodeScanner = new Html5Qrcode("reader");
+            }
+
+            if (isScannerRunning) {
+                // Stop scanner
+                html5QrcodeScanner.stop().then((ignore) => {
+                    isScannerRunning = false;
+                    btn.innerHTML = '<i class="fas fa-play mr-1"></i> Start Camera';
+                    btn.classList.replace('bg-red-100', 'bg-gray-100');
+                    btn.classList.replace('text-red-700', 'text-gray-700');
+                }).catch((err) => {
+                    showToast("Error stopping camera");
+                });
+            } else {
+                // Start scanner
+                // Prefer back camera
+                const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+                
+                html5QrcodeScanner.start(
+                    { facingMode: "environment" }, 
+                    config, 
+                    onScanSuccess, 
+                    onScanFailure
+                ).then(() => {
+                    isScannerRunning = true;
+                    btn.innerHTML = '<i class="fas fa-stop mr-1"></i> Stop Camera';
+                    btn.classList.replace('bg-gray-100', 'bg-red-100');
+                    btn.classList.replace('text-gray-700', 'text-red-700');
+                }).catch((err) => {
+                    console.error("Camera start error:", err);
+                    showToast("Camera access denied or unavailable.");
+                });
+            }
+        }
+
+        document.getElementById('toggle-camera-btn').addEventListener('click', startScanner);
+
+
+        // --- Navigation Logic ---
+        const viewScanner = document.getElementById('view-scanner');
+        const viewInventory = document.getElementById('view-inventory');
+        const navScanner = document.getElementById('nav-scanner');
+        const navInventory = document.getElementById('nav-inventory');
+
+        function switchView(view) {
+            if (view === 'scanner') {
+                viewScanner.classList.remove('hidden');
+                viewScanner.classList.add('flex');
+                viewInventory.classList.add('hidden');
+                viewInventory.classList.remove('flex');
+                
+                navScanner.classList.replace('bg-blue-500', 'bg-blue-700');
+                navInventory.classList.replace('bg-blue-700', 'bg-blue-500');
+            } else {
+                viewScanner.classList.add('hidden');
+                viewScanner.classList.remove('flex');
+                viewInventory.classList.remove('hidden');
+                viewInventory.classList.add('flex');
+                
+                navInventory.classList.replace('bg-blue-500', 'bg-blue-700');
+                navScanner.classList.replace('bg-blue-700', 'bg-blue-500');
+                
+                // Stop camera if navigating away to save battery
+                if (isScannerRunning && html5QrcodeScanner) {
+                    startScanner(); // calling it while running stops it
+                }
+            }
+        }
+
+        navScanner.addEventListener('click', () => switchView('scanner'));
+        navInventory.addEventListener('click', () => switchView('inventory'));
+
+
+        // --- Initialization ---
+        window.addEventListener('DOMContentLoaded', () => {
+            // Load saved data
+            loadInventory();
+            
+            // Auto-start camera if permissions allow (optional, usually better to let user click)
+            // setTimeout(startScanner, 500); 
+        });
+
+    </script>
+</body>
+</html>
