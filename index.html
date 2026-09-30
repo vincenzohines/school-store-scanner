@@ -369,30 +369,32 @@
                     return;
                 }
 
-                // Construct the submission URL. We use GET with URL parameters for simplicity 
-                // in this client-side only context.
-                const submitUrl = `${baseUrl}?${entryParamKey}=${encodeURIComponent(barcode)}&submit=Submit`;
+                // Use fetch with POST and no-cors. This is the most reliable way 
+                // to send data to Google Forms without CORS errors blocking it.
+                const formData = new URLSearchParams();
+                formData.append(entryParamKey, barcode);
 
-                // Create a hidden iframe to submit the form silently to bypass CORS restrictions
-                // that a normal fetch() might encounter when posting to Google Forms from a different domain.
-                const iframe = document.createElement('iframe');
-                iframe.style.display = 'none';
-                iframe.src = submitUrl;
-                
-                // Add to body, then remove after a delay to clean up
-                document.body.appendChild(iframe);
-                setTimeout(() => {
-                    document.body.removeChild(iframe);
-                }, 3000);
-
-                console.log("Background sync triggered for:", barcode);
+                fetch(baseUrl, {
+                    method: 'POST',
+                    mode: 'no-cors', // Crucial: prevents Cross-Origin Resource Sharing (CORS) errors
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: formData.toString()
+                }).then(() => {
+                    console.log("Background sync triggered for:", barcode);
+                    // The request was sent. Due to 'no-cors', we can't read the exact success response,
+                    // but if it didn't throw a network error, it went through.
+                }).catch((error) => {
+                    console.error("Fetch error submitting to Google Forms:", error);
+                    showToast("Failed to sync to cloud. Check internet connection.");
+                });
 
             } catch (error) {
-                console.error("Error submitting to Google Forms:", error);
+                console.error("Error setting up Google Form submit:", error);
                 showToast("Failed to sync to cloud.");
             }
         }
-
 
         // --- Inventory Core Logic ---
 
