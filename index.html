@@ -106,16 +106,28 @@
                 </div>
 
                 <!-- Student Management -->
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
                     <div class="p-4 bg-gray-50 border-b border-gray-200">
                         <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wider"><i class="fas fa-users mr-1"></i> Student Roster</h2>
                         <p class="text-xs text-gray-400 mt-1">Generate private IDs for student access.</p>
                     </div>
-                    <div class="p-4 border-b border-gray-100 flex gap-2 bg-white">
-                        <input type="text" id="newStudentName" placeholder="Student First Name..." class="flex-1 border border-gray-300 rounded-lg p-2 text-sm focus:outline-none focus:border-blue-500">
-                        <button id="addStudentBtn" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">Generate ID</button>
+                    
+                    <!-- Single Add -->
+                    <div class="p-4 flex gap-2 bg-white">
+                        <input type="text" id="newStudentName" placeholder="Single Student Name..." class="flex-1 border border-gray-300 rounded-lg p-2 text-sm focus:outline-none focus:border-blue-500">
+                        <button id="addStudentBtn" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">Add</button>
                     </div>
-                    <div class="overflow-x-auto bg-white">
+
+                    <!-- Bulk Add -->
+                    <div class="p-4 border-t border-dashed border-gray-200 bg-gray-50">
+                        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Bulk Import</h3>
+                        <textarea id="bulkStudentList" rows="3" placeholder="Paste a list of names here (one per line)..." class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:outline-none focus:border-blue-500 mb-2"></textarea>
+                        <button id="bulkAddBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+                            <i class="fas fa-file-import mr-1"></i> Import Roster
+                        </button>
+                    </div>
+
+                    <div class="overflow-x-auto bg-white border-t border-gray-200">
                         <table class="w-full text-left border-collapse">
                             <tbody id="studentList" class="text-sm divide-y divide-gray-100">
                                 <!-- Students populate here -->
@@ -171,7 +183,6 @@
         import { getFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // *** ADMIN MASTER PIN *** 
-        // Change this to whatever you want your admin password to be!
         const ADMIN_PIN = "12345"; 
 
         // Database Configuration
@@ -195,11 +206,10 @@
         let inventoryData = {};
         let studentData = {};
         
-        let currentUserRole = null; // 'admin' or 'student'
+        let currentUserRole = null; 
         let currentUserName = null;
         let isFirebaseReady = false;
 
-        // Start Anonymous Auth immediately in background
         signInAnonymously(auth).catch((error) => { console.error("Auth Error", error); });
 
         onAuthStateChanged(auth, (user) => {
@@ -209,14 +219,12 @@
                 statusLabel.textContent = "System Ready. Enter ID.";
                 statusLabel.className = "mt-4 text-sm text-green-600 h-5";
                 
-                // Sync Inventory Data
                 onSnapshot(collection(db, "inventory"), (snapshot) => {
                     inventoryData = {};
                     snapshot.forEach((doc) => { inventoryData[doc.id] = doc.data(); });
                     if(currentUserRole) renderInventory();
                 });
 
-                // Sync Student Roster Data
                 onSnapshot(collection(db, "students"), (snapshot) => {
                     studentData = {};
                     snapshot.forEach((doc) => { studentData[doc.id] = doc.data(); });
@@ -248,7 +256,6 @@
                 currentUserName = 'Admin';
                 launchApp();
             } else {
-                // Check if it matches a Student ID in the database
                 const docRef = doc(db, "students", inputVal);
                 const docSnap = await getDoc(docRef);
                 
@@ -280,7 +287,6 @@
 
         // --- Tab Navigation Logic ---
         window.switchTab = function(tabName) {
-            // Stop scanner if leaving scanner tab
             if (tabName !== 'scanner' && isScanning && scanner) {
                 scanner.stop().then(() => {
                     isScanning = false;
@@ -288,13 +294,11 @@
                 });
             }
 
-            // Reset all tabs
             ['scanner', 'inventory', 'admin'].forEach(t => {
                 document.getElementById(`tab-${t}`).className = `flex-1 py-3 transition-all ${t === 'admin' && currentUserRole !== 'admin' ? 'hidden' : 'tab-inactive'}`;
                 document.getElementById(`view-${t}`).classList.add('hidden');
             });
 
-            // Activate selected tab
             document.getElementById(`tab-${tabName}`).className = "flex-1 py-3 tab-active transition-all";
             document.getElementById(`view-${tabName}`).classList.remove('hidden');
         };
@@ -305,17 +309,47 @@
             const name = nameInput.value.trim();
             if (!name) return;
 
-            // Generate random 5 digit ID
             const privateId = Math.floor(10000 + Math.random() * 90000).toString();
             
             await setDoc(doc(db, "students", privateId), {
-                id: privateId,
-                name: name,
-                addedOn: new Date().toISOString()
+                id: privateId, name: name, addedOn: new Date().toISOString()
             });
             
             nameInput.value = '';
             showToast(`${name} added! ID: ${privateId}`);
+        });
+
+        // Bulk Add Feature
+        document.getElementById('bulkAddBtn').addEventListener('click', async () => {
+            const textarea = document.getElementById('bulkStudentList');
+            const lines = textarea.value.split('\\n').map(name => name.trim()).filter(name => name.length > 0);
+            
+            if (lines.length === 0) {
+                showToast("Please paste at least one name.");
+                return;
+            }
+
+            const btn = document.getElementById('bulkAddBtn');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing...';
+            btn.disabled = true;
+
+            let addedCount = 0;
+            for (const name of lines) {
+                // Generate random 5-digit ID
+                let privateId = Math.floor(10000 + Math.random() * 90000).toString();
+                
+                await setDoc(doc(db, "students", privateId), {
+                    id: privateId,
+                    name: name,
+                    addedOn: new Date().toISOString()
+                });
+                addedCount++;
+            }
+
+            textarea.value = '';
+            btn.innerHTML = '<i class="fas fa-file-import mr-1"></i> Import Roster';
+            btn.disabled = false;
+            showToast(`Successfully added ${addedCount} students!`);
         });
 
         window.deleteStudent = async function(id) {
@@ -486,9 +520,9 @@
 
         document.getElementById('exportBtn').addEventListener('click', () => {
             const headers = ["Barcode", "Name", "Category", "Points", "Quantity"];
-            let csvContent = headers.join(",") + "\n";
+            let csvContent = headers.join(",") + "\\n";
             Object.values(inventoryData).forEach(item => {
-                csvContent += `${item.barcode},"${item.name}","${item.category}",${item.points},${item.quantity}\n`;
+                csvContent += `${item.barcode},"${item.name}","${item.category}",${item.points},${item.quantity}\\n`;
             });
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
