@@ -238,7 +238,14 @@
 
         // Setup Environment Variables provided by the hosting context
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'school-store-default';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const firebaseConfig = {
+  apiKey: "AIzaSyC3Z7qr7OUx_8gY4sz-SN324mbmcwpcCt4",
+  authDomain: "school-store-db-e2ace.firebaseapp.com",
+  projectId: "school-store-db-e2ace",
+  storageBucket: "school-store-db-e2ace.firebasestorage.app",
+  messagingSenderId: "838354562801",
+  appId: "1:838354562801:web:0715be7bfda084c66b4350"
+};
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         // --- State Management ---
