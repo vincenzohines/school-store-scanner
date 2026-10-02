@@ -5,66 +5,128 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>PBIS Store Scanner</title>
+    <title>PBIS Store System</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+        .tab-active { border-bottom: 3px solid #3b82f6; color: #1d4ed8; font-weight: bold; }
+        .tab-inactive { color: #6b7280; border-bottom: 3px solid transparent; }
     </style>
 </head>
-<body class="bg-slate-50 min-h-screen pb-20 font-sans text-gray-800">
+<body class="bg-slate-50 min-h-screen font-sans text-gray-800">
 
-    <!-- Header -->
-    <header class="bg-blue-700 text-white p-4 shadow-md flex justify-between items-center sticky top-0 z-10">
-        <h1 class="text-xl font-bold">PBIS Store Scanner</h1>
-        <div id="cloudStatus" class="text-yellow-300" title="Connecting to Cloud...">
-            <i class="fas fa-cloud text-xl"></i>
-        </div>
-    </header>
-
-    <main class="p-4 max-w-md mx-auto">
-        <!-- Scanner Area -->
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-            <div id="reader" class="w-full rounded overflow-hidden mb-4 bg-black"></div>
-            <button id="startScanBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors text-lg flex justify-center items-center">
-                <i class="fas fa-camera mr-2"></i> Start Scanner
+    <!-- LOGIN SCREEN -->
+    <div id="loginScreen" class="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-100">
+        <div class="bg-white p-8 rounded-2xl shadow-lg w-full max-w-sm text-center">
+            <div class="bg-blue-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
+                <i class="fas fa-store text-2xl text-white"></i>
+            </div>
+            <h1 class="text-2xl font-bold text-gray-800 mb-1">PBIS Store</h1>
+            <p class="text-sm text-gray-500 mb-8">Enter your Private ID to continue</p>
+            
+            <input type="password" id="loginInput" class="w-full border-2 border-gray-200 rounded-xl p-4 text-center text-2xl tracking-widest font-mono mb-4 focus:outline-none focus:border-blue-500 transition-colors" placeholder="•••••">
+            
+            <button id="loginBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-md transition-colors text-lg flex justify-center items-center">
+                Sign In <i class="fas fa-arrow-right ml-2"></i>
             </button>
+            <div id="loginStatus" class="mt-4 text-sm text-yellow-600 h-5">Connecting to network...</div>
         </div>
+    </div>
 
-        <!-- Manual Entry -->
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-            <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Manual Entry</h2>
-            <div class="flex gap-2">
-                <input type="text" id="manualBarcode" placeholder="Enter barcode manually..." class="flex-1 border border-gray-300 rounded-lg p-3 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                <button id="manualSubmitBtn" class="bg-gray-800 hover:bg-gray-900 text-white px-5 py-3 rounded-lg font-semibold transition-colors">Add</button>
+    <!-- MAIN APP SCREEN (Hidden initially) -->
+    <div id="appScreen" class="hidden pb-20">
+        <!-- Header -->
+        <header class="bg-blue-700 text-white p-4 shadow-md flex justify-between items-center sticky top-0 z-10">
+            <div>
+                <h1 class="text-xl font-bold">PBIS Store</h1>
+                <p id="userWelcome" class="text-xs text-blue-200"></p>
             </div>
-        </div>
+            <div id="cloudStatus" class="text-yellow-300" title="Connected">
+                <i class="fas fa-cloud text-xl"></i>
+            </div>
+        </header>
 
-        <!-- Inventory List -->
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div class="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-                <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wider">Current Inventory</h2>
-                <button id="exportBtn" class="text-xs text-blue-700 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-3 py-1.5 rounded font-semibold transition-colors">
-                    <i class="fas fa-download mr-1"></i> CSV
-                </button>
+        <!-- Navigation Tabs -->
+        <nav class="bg-white shadow-sm flex sticky top-[72px] z-10">
+            <button onclick="switchTab('scanner')" id="tab-scanner" class="flex-1 py-3 tab-active transition-all"><i class="fas fa-camera mr-1"></i> Scan</button>
+            <button onclick="switchTab('inventory')" id="tab-inventory" class="flex-1 py-3 tab-inactive transition-all"><i class="fas fa-list mr-1"></i> Inventory</button>
+            <button onclick="switchTab('admin')" id="tab-admin" class="flex-1 py-3 tab-inactive transition-all hidden"><i class="fas fa-shield-alt mr-1"></i> Admin</button>
+        </nav>
+
+        <main class="p-4 max-w-md mx-auto">
+            
+            <!-- SCANNER VIEW -->
+            <div id="view-scanner" class="block">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+                    <p class="text-sm text-gray-500 mb-3 text-center">Point camera at a barcode to record item.</p>
+                    <div id="reader" class="w-full rounded overflow-hidden mb-4 bg-black min-h-[250px]"></div>
+                    <button id="startScanBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors text-lg flex justify-center items-center">
+                        <i class="fas fa-camera mr-2"></i> Start Scanner
+                    </button>
+                </div>
             </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="bg-white text-xs text-gray-400 border-b">
-                            <th class="p-3 font-semibold">Item Details</th>
-                            <th class="p-3 font-semibold text-right">Points</th>
-                            <th class="p-3 font-semibold text-right">Qty</th>
-                        </tr>
-                    </thead>
-                    <tbody id="inventoryList" class="text-sm divide-y divide-gray-100 bg-white">
-                        <!-- Items populate here -->
-                    </tbody>
-                </table>
+
+            <!-- INVENTORY VIEW -->
+            <div id="view-inventory" class="hidden">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                        <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wider">Store Database</h2>
+                        <button id="exportBtn" class="text-xs text-blue-700 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-3 py-1.5 rounded font-semibold transition-colors">
+                            <i class="fas fa-download mr-1"></i> CSV
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-white text-xs text-gray-400 border-b">
+                                    <th class="p-3 font-semibold">Item</th>
+                                    <th class="p-3 font-semibold text-right">Pts</th>
+                                    <th class="p-3 font-semibold text-right">Qty</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventoryList" class="text-sm divide-y divide-gray-100 bg-white">
+                                <!-- Items populate here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
-        </div>
-    </main>
+
+            <!-- ADMIN VIEW -->
+            <div id="view-admin" class="hidden">
+                <!-- Manual Entry (Admin Only) -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6 border-l-4 border-l-blue-500">
+                    <h2 class="text-sm font-bold text-blue-700 uppercase tracking-wider mb-3"><i class="fas fa-keyboard mr-1"></i> Manual Entry Override</h2>
+                    <div class="flex gap-2">
+                        <input type="text" id="manualBarcode" placeholder="Type barcode..." class="flex-1 border border-gray-300 rounded-lg p-3 focus:outline-none focus:border-blue-500">
+                        <button id="manualSubmitBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-lg font-semibold transition-colors">Add</button>
+                    </div>
+                </div>
+
+                <!-- Student Management -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="p-4 bg-gray-50 border-b border-gray-200">
+                        <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wider"><i class="fas fa-users mr-1"></i> Student Roster</h2>
+                        <p class="text-xs text-gray-400 mt-1">Generate private IDs for student access.</p>
+                    </div>
+                    <div class="p-4 border-b border-gray-100 flex gap-2 bg-white">
+                        <input type="text" id="newStudentName" placeholder="Student First Name..." class="flex-1 border border-gray-300 rounded-lg p-2 text-sm focus:outline-none focus:border-blue-500">
+                        <button id="addStudentBtn" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">Generate ID</button>
+                    </div>
+                    <div class="overflow-x-auto bg-white">
+                        <table class="w-full text-left border-collapse">
+                            <tbody id="studentList" class="text-sm divide-y divide-gray-100">
+                                <!-- Students populate here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
 
     <!-- New Item Modal -->
     <div id="itemModal" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center p-4 z-50 backdrop-blur-sm transition-opacity">
@@ -78,15 +140,15 @@
             <div class="space-y-4">
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Reward Name</label>
-                    <input type="text" id="itemName" class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="e.g. Takis, Notebook">
+                    <input type="text" id="itemName" class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:border-blue-500" placeholder="e.g. Takis, Notebook">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Category</label>
-                    <input type="text" id="itemCategory" class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="e.g. Snacks, Supplies">
+                    <input type="text" id="itemCategory" class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:border-blue-500" placeholder="e.g. Snacks, Supplies">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Points Value</label>
-                    <input type="number" id="itemPoints" class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-lg font-bold text-blue-600" placeholder="0">
+                    <input type="number" id="itemPoints" class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:border-blue-500 text-lg font-bold text-blue-600" placeholder="0">
                 </div>
             </div>
 
@@ -108,7 +170,11 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Your specific database configuration
+        // *** ADMIN MASTER PIN *** 
+        // Change this to whatever you want your admin password to be!
+        const ADMIN_PIN = "12345"; 
+
+        // Database Configuration
         const firebaseConfig = {
             apiKey: "AIzaSyC3Z7qr7OUx_8gY4sz-SN324mbmcwpcCt4",
             authDomain: "school-store-db-e2ace.firebaseapp.com",
@@ -122,48 +188,170 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // State
+        // State Variables
         let scanner = null;
         let isScanning = false;
         let currentBarcode = null;
         let inventoryData = {};
-
-        // DOM Elements
-        const cloudStatus = document.getElementById('cloudStatus');
-        const inventoryList = document.getElementById('inventoryList');
-        const startScanBtn = document.getElementById('startScanBtn');
-        const modal = document.getElementById('itemModal');
+        let studentData = {};
         
-        // --- Authentication & DB Sync ---
-        signInAnonymously(auth).catch((error) => {
-            showToast("Auth Error: " + error.message);
-        });
+        let currentUserRole = null; // 'admin' or 'student'
+        let currentUserName = null;
+        let isFirebaseReady = false;
+
+        // Start Anonymous Auth immediately in background
+        signInAnonymously(auth).catch((error) => { console.error("Auth Error", error); });
 
         onAuthStateChanged(auth, (user) => {
+            const statusLabel = document.getElementById('loginStatus');
             if (user) {
-                cloudStatus.className = "text-green-400";
-                cloudStatus.title = "Database Synced";
+                isFirebaseReady = true;
+                statusLabel.textContent = "System Ready. Enter ID.";
+                statusLabel.className = "mt-4 text-sm text-green-600 h-5";
                 
+                // Sync Inventory Data
                 onSnapshot(collection(db, "inventory"), (snapshot) => {
                     inventoryData = {};
-                    snapshot.forEach((doc) => {
-                        inventoryData[doc.id] = doc.data();
-                    });
-                    renderInventory();
-                }, (error) => {
-                    cloudStatus.className = "text-red-400";
-                    showToast("Sync Error! Check your internet.");
+                    snapshot.forEach((doc) => { inventoryData[doc.id] = doc.data(); });
+                    if(currentUserRole) renderInventory();
                 });
+
+                // Sync Student Roster Data
+                onSnapshot(collection(db, "students"), (snapshot) => {
+                    studentData = {};
+                    snapshot.forEach((doc) => { studentData[doc.id] = doc.data(); });
+                    if(currentUserRole === 'admin') renderStudents();
+                });
+
             } else {
-                cloudStatus.className = "text-yellow-300";
+                statusLabel.textContent = "Connection Lost.";
+                statusLabel.className = "mt-4 text-sm text-red-600 h-5";
             }
         });
 
-        // --- Core Functions ---
-        async function processBarcode(barcode) {
-            if (isScanning && scanner) {
-                scanner.pause(true);
+        // --- Login Logic ---
+        document.getElementById('loginBtn').addEventListener('click', async () => {
+            if (!isFirebaseReady) {
+                showToast("Still connecting to cloud. Please wait...");
+                return;
             }
+            
+            const inputVal = document.getElementById('loginInput').value.trim();
+            const btn = document.getElementById('loginBtn');
+            
+            if(!inputVal) return;
+            
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
+
+            if (inputVal === ADMIN_PIN) {
+                currentUserRole = 'admin';
+                currentUserName = 'Admin';
+                launchApp();
+            } else {
+                // Check if it matches a Student ID in the database
+                const docRef = doc(db, "students", inputVal);
+                const docSnap = await getDoc(docRef);
+                
+                if (docSnap.exists()) {
+                    currentUserRole = 'student';
+                    currentUserName = docSnap.data().name;
+                    launchApp();
+                } else {
+                    showToast("Invalid ID. Try again.");
+                    document.getElementById('loginInput').value = '';
+                    btn.innerHTML = 'Sign In <i class="fas fa-arrow-right ml-2"></i>';
+                }
+            }
+        });
+
+        function launchApp() {
+            document.getElementById('loginScreen').classList.add('hidden');
+            document.getElementById('appScreen').classList.remove('hidden');
+            document.getElementById('userWelcome').textContent = `Logged in as: ${currentUserName}`;
+            document.getElementById('cloudStatus').className = "text-green-400";
+            
+            if (currentUserRole === 'admin') {
+                document.getElementById('tab-admin').classList.remove('hidden');
+                renderStudents();
+            }
+            
+            renderInventory();
+        }
+
+        // --- Tab Navigation Logic ---
+        window.switchTab = function(tabName) {
+            // Stop scanner if leaving scanner tab
+            if (tabName !== 'scanner' && isScanning && scanner) {
+                scanner.stop().then(() => {
+                    isScanning = false;
+                    resetScannerBtn();
+                });
+            }
+
+            // Reset all tabs
+            ['scanner', 'inventory', 'admin'].forEach(t => {
+                document.getElementById(`tab-${t}`).className = `flex-1 py-3 transition-all ${t === 'admin' && currentUserRole !== 'admin' ? 'hidden' : 'tab-inactive'}`;
+                document.getElementById(`view-${t}`).classList.add('hidden');
+            });
+
+            // Activate selected tab
+            document.getElementById(`tab-${tabName}`).className = "flex-1 py-3 tab-active transition-all";
+            document.getElementById(`view-${tabName}`).classList.remove('hidden');
+        };
+
+        // --- Admin: Student Management ---
+        document.getElementById('addStudentBtn').addEventListener('click', async () => {
+            const nameInput = document.getElementById('newStudentName');
+            const name = nameInput.value.trim();
+            if (!name) return;
+
+            // Generate random 5 digit ID
+            const privateId = Math.floor(10000 + Math.random() * 90000).toString();
+            
+            await setDoc(doc(db, "students", privateId), {
+                id: privateId,
+                name: name,
+                addedOn: new Date().toISOString()
+            });
+            
+            nameInput.value = '';
+            showToast(`${name} added! ID: ${privateId}`);
+        });
+
+        window.deleteStudent = async function(id) {
+            if (confirm("Revoke this student's access?")) {
+                await deleteDoc(doc(db, "students", id));
+                showToast("Access revoked.");
+            }
+        };
+
+        function renderStudents() {
+            const list = document.getElementById('studentList');
+            list.innerHTML = '';
+            const students = Object.values(studentData).sort((a, b) => a.name.localeCompare(b.name));
+            
+            students.forEach(student => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="p-3">
+                        <div class="font-bold text-gray-800">${student.name}</div>
+                    </td>
+                    <td class="p-3 text-right">
+                        <span class="bg-gray-100 border border-gray-200 text-gray-700 px-3 py-1 rounded font-mono font-bold tracking-wider">${student.id}</span>
+                    </td>
+                    <td class="p-3 text-right w-12">
+                        <button onclick="window.deleteStudent('${student.id}')" class="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 w-8 h-8 rounded-full inline-flex items-center justify-center transition-colors">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </td>
+                `;
+                list.appendChild(tr);
+            });
+        }
+
+        // --- Core Inventory & Scanning Functions ---
+        async function processBarcode(barcode) {
+            if (isScanning && scanner) scanner.pause(true);
 
             try {
                 const docRef = doc(db, "inventory", barcode);
@@ -176,7 +364,7 @@
                         quantity: data.quantity + 1,
                         lastUpdated: new Date().toISOString()
                     });
-                    showToast(`+1 ${data.name} added!`);
+                    showToast(`+1 ${data.name} recorded!`);
                     if (isScanning && scanner) scanner.resume();
                 } else {
                     currentBarcode = barcode;
@@ -184,53 +372,14 @@
                     document.getElementById('itemName').value = '';
                     document.getElementById('itemCategory').value = '';
                     document.getElementById('itemPoints').value = '';
-                    modal.classList.remove('hidden');
-                    modal.classList.add('flex');
+                    document.getElementById('itemModal').classList.remove('hidden');
+                    document.getElementById('itemModal').classList.add('flex');
                 }
             } catch (err) {
-                showToast("Error checking database.");
+                showToast("Database error.");
                 if (isScanning && scanner) scanner.resume();
             }
         }
-
-        // --- Global Delete Function ---
-        window.deleteItem = async function(barcode) {
-            if (confirm("Are you sure you want to permanently delete this reward from the inventory?")) {
-                try {
-                    await deleteDoc(doc(db, "inventory", barcode));
-                    showToast("Reward deleted!");
-                } catch (err) {
-                    showToast("Error deleting item.");
-                }
-            }
-        };
-
-        // --- Event Listeners ---
-        document.getElementById('saveItemBtn').addEventListener('click', async () => {
-            const name = document.getElementById('itemName').value || "Unnamed Reward";
-            const category = document.getElementById('itemCategory').value || "Misc";
-            const points = parseInt(document.getElementById('itemPoints').value) || 0;
-
-            await setDoc(doc(db, "inventory", currentBarcode), {
-                barcode: currentBarcode,
-                name: name,
-                category: category,
-                points: points,
-                quantity: 1,
-                lastUpdated: new Date().toISOString()
-            });
-
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-            showToast("Reward saved!");
-            if (isScanning && scanner) scanner.resume();
-        });
-
-        document.getElementById('cancelModalBtn').addEventListener('click', () => {
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-            if (isScanning && scanner) scanner.resume();
-        });
 
         document.getElementById('manualSubmitBtn').addEventListener('click', () => {
             const input = document.getElementById('manualBarcode');
@@ -241,7 +390,47 @@
             }
         });
 
-        startScanBtn.addEventListener('click', () => {
+        // Modal Controls
+        document.getElementById('saveItemBtn').addEventListener('click', async () => {
+            const name = document.getElementById('itemName').value || "Unnamed Reward";
+            const category = document.getElementById('itemCategory').value || "Misc";
+            const points = parseInt(document.getElementById('itemPoints').value) || 0;
+
+            await setDoc(doc(db, "inventory", currentBarcode), {
+                barcode: currentBarcode, name: name, category: category, points: points,
+                quantity: 1, lastUpdated: new Date().toISOString()
+            });
+
+            document.getElementById('itemModal').classList.add('hidden');
+            document.getElementById('itemModal').classList.remove('flex');
+            showToast("Reward saved!");
+            if (isScanning && scanner) scanner.resume();
+        });
+
+        document.getElementById('cancelModalBtn').addEventListener('click', () => {
+            document.getElementById('itemModal').classList.add('hidden');
+            document.getElementById('itemModal').classList.remove('flex');
+            if (isScanning && scanner) scanner.resume();
+        });
+
+        // Global Delete (Admin Only)
+        window.deleteItem = async function(barcode) {
+            if (currentUserRole !== 'admin') return;
+            if (confirm("Permanently delete this reward?")) {
+                await deleteDoc(doc(db, "inventory", barcode));
+                showToast("Reward deleted!");
+            }
+        };
+
+        // Scanner initialization
+        function resetScannerBtn() {
+            const btn = document.getElementById('startScanBtn');
+            btn.innerHTML = '<i class="fas fa-camera mr-2"></i> Start Scanner';
+            btn.classList.replace('bg-red-500', 'bg-blue-600');
+            btn.classList.replace('hover:bg-red-600', 'hover:bg-blue-700');
+        }
+
+        document.getElementById('startScanBtn').addEventListener('click', () => {
             if (!isScanning) {
                 scanner = new Html5Qrcode("reader");
                 const config = { fps: 10, qrbox: { width: 250, height: 150 } };
@@ -250,37 +439,57 @@
                     processBarcode(decodedText);
                 }).then(() => {
                     isScanning = true;
-                    startScanBtn.innerHTML = '<i class="fas fa-stop mr-2"></i> Stop Scanner';
-                    startScanBtn.classList.replace('bg-blue-600', 'bg-red-500');
-                    startScanBtn.classList.replace('hover:bg-blue-700', 'hover:bg-red-600');
-                }).catch(err => {
-                    showToast("Camera access denied or error.");
-                });
+                    const btn = document.getElementById('startScanBtn');
+                    btn.innerHTML = '<i class="fas fa-stop mr-2"></i> Stop Scanner';
+                    btn.classList.replace('bg-blue-600', 'bg-red-500');
+                    btn.classList.replace('hover:bg-blue-700', 'hover:bg-red-600');
+                }).catch(err => { showToast("Camera access denied."); });
             } else {
                 scanner.stop().then(() => {
                     isScanning = false;
-                    startScanBtn.innerHTML = '<i class="fas fa-camera mr-2"></i> Start Scanner';
-                    startScanBtn.classList.replace('bg-red-500', 'bg-blue-600');
-                    startScanBtn.classList.replace('hover:bg-red-600', 'hover:bg-blue-700');
+                    resetScannerBtn();
                 });
             }
         });
 
+        function renderInventory() {
+            const list = document.getElementById('inventoryList');
+            list.innerHTML = '';
+            const items = Object.values(inventoryData).sort((a, b) => b.lastUpdated?.localeCompare(a.lastUpdated));
+            
+            items.forEach(item => {
+                const tr = document.createElement('tr');
+                
+                // Only show trash can if Admin
+                const deleteBtnHtml = currentUserRole === 'admin' 
+                    ? `<button onclick="window.deleteItem('${item.barcode}')" class="text-red-400 hover:text-red-600 ml-3 bg-red-50 hover:bg-red-100 w-7 h-7 rounded-full flex items-center justify-center transition-colors"><i class="fas fa-trash-alt text-xs"></i></button>`
+                    : '';
+
+                tr.innerHTML = `
+                    <td class="p-3">
+                        <div class="font-bold text-gray-800">${item.name}</div>
+                        <div class="text-xs text-gray-400 font-mono mt-0.5">${item.barcode}</div>
+                    </td>
+                    <td class="p-3 text-right">
+                        <span class="bg-blue-50 text-blue-700 px-2 py-1 rounded font-bold text-xs">${item.points} pts</span>
+                    </td>
+                    <td class="p-3">
+                        <div class="flex items-center justify-end">
+                            <span class="font-bold text-gray-800 text-lg">${item.quantity}</span>
+                            ${deleteBtnHtml}
+                        </div>
+                    </td>
+                `;
+                list.appendChild(tr);
+            });
+        }
+
         document.getElementById('exportBtn').addEventListener('click', () => {
             const headers = ["Barcode", "Name", "Category", "Points", "Quantity"];
             let csvContent = headers.join(",") + "\n";
-            
             Object.values(inventoryData).forEach(item => {
-                const row = [
-                    item.barcode,
-                    `"${item.name}"`,
-                    `"${item.category}"`,
-                    item.points,
-                    item.quantity
-                ];
-                csvContent += row.join(",") + "\n";
+                csvContent += `${item.barcode},"${item.name}","${item.category}",${item.points},${item.quantity}\n`;
             });
-
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
@@ -288,40 +497,11 @@
             link.click();
         });
 
-        function renderInventory() {
-            inventoryList.innerHTML = '';
-            const items = Object.values(inventoryData).sort((a, b) => b.lastUpdated?.localeCompare(a.lastUpdated));
-            
-            items.forEach(item => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="p-3">
-                        <div class="font-bold text-gray-800">${item.name}</div>
-                        <div class="text-xs text-gray-400 font-mono mt-0.5">${item.barcode}</div>
-                    </td>
-                    <td class="p-3 text-right">
-                        <span class="bg-blue-50 text-blue-700 px-2 py-1 rounded font-bold text-sm">${item.points} pts</span>
-                    </td>
-                    <td class="p-3">
-                        <div class="flex items-center justify-end gap-3">
-                            <span class="font-bold text-gray-800 text-lg">${item.quantity}</span>
-                            <button onclick="window.deleteItem('${item.barcode}')" class="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 w-8 h-8 rounded-full flex items-center justify-center transition-colors" title="Delete Reward">
-                                <i class="fas fa-trash-alt text-xs"></i>
-                            </button>
-                        </div>
-                    </td>
-                `;
-                inventoryList.appendChild(tr);
-            });
-        }
-
         function showToast(message) {
             const toast = document.getElementById('toast');
             document.getElementById('toastMsg').textContent = message;
             toast.classList.remove('opacity-0');
-            setTimeout(() => {
-                toast.classList.add('opacity-0');
-            }, 3000);
+            setTimeout(() => toast.classList.add('opacity-0'), 3000);
         }
     </script>
 </body>
