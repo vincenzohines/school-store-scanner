@@ -79,6 +79,7 @@
     <header class="bg-blue-600 text-white shadow-md p-4 sticky top-0 z-10 flex justify-between items-center">
         <h1 class="text-xl font-bold flex items-center gap-2">
             <i class="fas fa-store"></i> School Store Scanner
+            <span id="cloud-status" class="ml-2 text-sm"><i class="fas fa-spinner fa-spin text-blue-300"></i></span>
         </h1>
         <div class="flex gap-2">
             <!-- Navigation buttons to toggle between Scanner and Inventory views -->
@@ -123,38 +124,6 @@
                         Add
                     </button>
                 </form>
-            </div>
-
-            <!-- Google Form Integration Settings -->
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mt-4">
-                <h2 class="text-lg font-semibold mb-2 text-gray-700 flex items-center justify-between cursor-pointer" id="toggle-settings">
-                    <span><i class="fas fa-cog mr-2"></i>Google Sheets Sync</span>
-                    <i class="fas fa-chevron-down transition-transform" id="settings-chevron"></i>
-                </h2>
-                
-                <div id="settings-content" class="hidden flex-col gap-3 mt-3 pt-3 border-t">
-                    <p class="text-sm text-gray-600 mb-2">
-                        To send scans directly to a Google Sheet:
-                        <ol class="list-decimal ml-5 text-xs text-gray-600 space-y-1 mt-1">
-                            <li>Create a Google Form with one "Short Answer" question.</li>
-                            <li>Go to Responses -> Link to Sheets.</li>
-                            <li>Click the 3 dots in the top right -> Get pre-filled link.</li>
-                            <li>Enter a dummy answer (e.g., "TEST") and click Get Link -> Copy Link.</li>
-                            <li>Paste that full URL below.</li>
-                        </ol>
-                    </p>
-                    <div class="flex flex-col gap-1">
-                        <label class="text-xs font-medium text-gray-700">Pre-filled Google Form URL</label>
-                        <div class="flex gap-2">
-                            <input type="text" id="google-form-url" placeholder="https://docs.google.com/forms/d/e/.../viewform?usp=pp_url&entry.12345=TEST" class="flex-grow p-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <button id="save-settings-btn" class="bg-gray-800 text-white px-3 py-2 rounded-md hover:bg-gray-900 transition text-sm whitespace-nowrap">Save</button>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-2 mt-2">
-                        <input type="checkbox" id="sync-enabled" class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
-                        <label for="sync-enabled" class="text-sm text-gray-700">Enable automatic syncing to Google Sheets</label>
-                    </div>
-                </div>
             </div>
         </section>
 
@@ -262,24 +231,27 @@
     <!-- Toast Notification -->
     <div id="toast" class="toast">Message goes here</div>
 
-    <script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Setup Environment Variables provided by the hosting context
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'school-store-default';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
         // --- State Management ---
-        // Inventory data structure: { "barcode_string": { name, qty, category, price, dateAdded } }
         let inventory = {};
-        const STORAGE_KEY = 'school_store_inventory';
-        const SETTINGS_KEY = 'school_store_settings';
         let html5QrcodeScanner = null;
         let isScannerRunning = false;
         
-        // Settings State
-        let appSettings = {
-            googleFormUrl: '',
-            syncEnabled: false
-        };
+        // Cloud Database State
+        let db = null;
+        let auth = null;
+        let currentUser = null;
 
         // --- Utility Functions ---
-        
-        // Show brief notification
         function showToast(message, duration = 3000) {
             const toast = document.getElementById("toast");
             toast.textContent = message;
@@ -287,40 +259,6 @@
             setTimeout(() => { toast.className = toast.className.replace("show", ""); }, duration);
         }
 
-        // Load data from LocalStorage
-        function loadInventory() {
-            try {
-                const stored = localStorage.getItem(STORAGE_KEY);
-                if (stored) {
-                    inventory = JSON.parse(stored);
-                }
-                
-                const storedSettings = localStorage.getItem(SETTINGS_KEY);
-                if (storedSettings) {
-                    appSettings = JSON.parse(storedSettings);
-                    document.getElementById('google-form-url').value = appSettings.googleFormUrl || '';
-                    document.getElementById('sync-enabled').checked = appSettings.syncEnabled || false;
-                }
-            } catch (e) {
-                console.error("Error loading data:", e);
-                showToast("Failed to load saved data");
-                inventory = {};
-            }
-            renderInventory();
-        }
-
-        // Save data to LocalStorage
-        function saveInventory() {
-            try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory));
-                renderInventory();
-            } catch (e) {
-                console.error("Error saving inventory:", e);
-                showToast("Failed to save inventory (Storage might be full)");
-            }
-        }
-
-        // Play a short beep sound (using Web Audio API, no external files)
         function playBeep() {
             try {
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -343,63 +281,61 @@
             }
         }
 
-        // --- Google Forms Integration ---
-        function submitToGoogleForms(barcode) {
-            if (!appSettings.syncEnabled || !appSettings.googleFormUrl) return;
+        // --- Cloud Sync Initialization ---
+        if (firebaseConfig) {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
 
-            try {
-                // We need to parse the provided pre-filled URL to extract the entry ID and base URL
-                const url = new URL(appSettings.googleFormUrl);
-                
-                // Change /viewform to /formResponse to allow programmatic submission
-                let baseUrl = url.origin + url.pathname.replace('/viewform', '/formResponse');
-                
-                // Find the entry ID parameter (starts with entry.)
-                let entryParamKey = null;
-                for (const [key, value] of url.searchParams.entries()) {
-                    if (key.startsWith('entry.')) {
-                        entryParamKey = key;
-                        break;
+            const initAuth = async () => {
+                try {
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } else {
+                        await signInAnonymously(auth);
                     }
+                } catch (e) {
+                    console.error("Auth error", e);
+                    showToast("Cloud connection failed.");
                 }
+            };
+            initAuth();
 
-                if (!entryParamKey) {
-                    console.error("Could not find an 'entry.' parameter in the URL");
-                    showToast("Invalid Google Form URL format. Check settings.");
-                    return;
+            onAuthStateChanged(auth, (user) => {
+                currentUser = user;
+                const statusIcon = document.getElementById('cloud-status');
+                if (user) {
+                    statusIcon.innerHTML = '<i class="fas fa-cloud text-green-300" title="Connected to Cloud (Live)"></i>';
+                    setupRealtimeSync();
+                } else {
+                    statusIcon.innerHTML = '<i class="fas fa-cloud-slash text-red-300" title="Disconnected"></i>';
                 }
+            });
+        } else {
+            document.getElementById('cloud-status').innerHTML = '<i class="fas fa-exclamation-triangle text-yellow-300" title="No DB config"></i>';
+        }
 
-                // Use fetch with POST and no-cors. This is the most reliable way 
-                // to send data to Google Forms without CORS errors blocking it.
-                const formData = new URLSearchParams();
-                formData.append(entryParamKey, barcode);
-
-                fetch(baseUrl, {
-                    method: 'POST',
-                    mode: 'no-cors', // Crucial: prevents Cross-Origin Resource Sharing (CORS) errors
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
-                    body: formData.toString()
-                }).then(() => {
-                    console.log("Background sync triggered for:", barcode);
-                    // The request was sent. Due to 'no-cors', we can't read the exact success response,
-                    // but if it didn't throw a network error, it went through.
-                }).catch((error) => {
-                    console.error("Fetch error submitting to Google Forms:", error);
-                    showToast("Failed to sync to cloud. Check internet connection.");
+        function setupRealtimeSync() {
+            if (!currentUser || !db) return;
+            // Listen to the shared public inventory collection for this specific app
+            const inventoryRef = collection(db, 'artifacts', appId, 'public', 'data', 'inventory');
+            
+            onSnapshot(inventoryRef, (snapshot) => {
+                inventory = {}; // reset local state
+                snapshot.forEach((docSnap) => {
+                    inventory[docSnap.id] = docSnap.data();
                 });
-
-            } catch (error) {
-                console.error("Error setting up Google Form submit:", error);
-                showToast("Failed to sync to cloud.");
-            }
+                renderInventory();
+            }, (error) => {
+                console.error("Real-time sync error:", error);
+                showToast("Disconnected from live updates.");
+            });
         }
 
         // --- Inventory Core Logic ---
 
         // Handle a successfully scanned or manually entered code
-        function handleBarcodeResult(decodedText) {
+        async function handleBarcodeResult(decodedText) {
             playBeep();
             
             // Show feedback in UI
@@ -408,49 +344,57 @@
             codeEl.textContent = `Scanned: ${decodedText}`;
             feedbackEl.classList.remove('hidden');
             
-            // Hide feedback after 3 seconds
             setTimeout(() => {
                 feedbackEl.classList.add('hidden');
             }, 3000);
 
-            // Add or increment inventory
-            if (inventory[decodedText]) {
-                // Item exists, increment quantity
-                inventory[decodedText].qty += 1;
-                inventory[decodedText].lastUpdated = new Date().toISOString();
-                showToast(`Increased quantity for ${inventory[decodedText].name || decodedText}`);
-                saveInventory();
-            } else {
-                // New item
-                inventory[decodedText] = {
-                    name: '', // Empty initially, prompt user to fill
-                    qty: 1,
-                    category: '',
-                    price: 0,
-                    dateAdded: new Date().toISOString(),
-                    lastUpdated: new Date().toISOString()
-                };
-                saveInventory();
-                showToast(`New item added: ${decodedText}`);
-                // Immediately open modal for new items so they can name it
-                openItemModal(decodedText);
+            if (!currentUser || !db) {
+                showToast("Not connected to cloud DB.");
+                return;
             }
+
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'inventory', decodedText);
             
-            submitToGoogleForms(decodedText);
+            try {
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    // Item exists, increment quantity
+                    await updateDoc(docRef, {
+                        qty: docSnap.data().qty + 1,
+                        lastUpdated: new Date().toISOString()
+                    });
+                    showToast(`Increased quantity for ${docSnap.data().name || decodedText}`);
+                } else {
+                    // New item
+                    const newItemData = {
+                        name: '', // Empty initially, prompt user to fill
+                        qty: 1,
+                        category: '',
+                        price: 0,
+                        dateAdded: new Date().toISOString(),
+                        lastUpdated: new Date().toISOString()
+                    };
+                    
+                    // Add it locally immediately so modal can open, then save to cloud
+                    inventory[decodedText] = newItemData; 
+                    await setDoc(docRef, newItemData);
+                    
+                    showToast(`New item added: ${decodedText}`);
+                    openItemModal(decodedText);
+                }
+            } catch (error) {
+                console.error("Error saving scan:", error);
+                showToast("Failed to save scan to cloud.");
+            }
         }
 
-        // Remove item completely
-        function deleteItem(barcode) {
-            // Using a simple confirm instead of a complex custom modal for brevity in this specific destructive action, 
-            // though the prompt asked to avoid confirm(). I will use a custom implementation below to strictly adhere.
-            
-            // Custom confirmation logic
+        async function deleteItem(barcode) {
             const overlay = document.createElement('div');
             overlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
             overlay.innerHTML = `
                 <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full">
                     <h3 class="text-lg font-bold text-red-600 mb-2">Confirm Delete</h3>
-                    <p class="text-gray-700 mb-4">Are you sure you want to remove this item completely from inventory?</p>
+                    <p class="text-gray-700 mb-4">Are you sure you want to remove this item completely from the shared inventory?</p>
                     <div class="flex justify-end gap-2">
                         <button id="cancel-del" class="px-4 py-2 border rounded hover:bg-gray-100">Cancel</button>
                         <button id="confirm-del" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Delete</button>
@@ -460,31 +404,37 @@
             document.body.appendChild(overlay);
             
             document.getElementById('cancel-del').onclick = () => overlay.remove();
-            document.getElementById('confirm-del').onclick = () => {
-                delete inventory[barcode];
-                saveInventory();
-                showToast("Item removed");
+            document.getElementById('confirm-del').onclick = async () => {
                 overlay.remove();
+                if (!currentUser || !db) return;
+                try {
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'inventory', barcode);
+                    await deleteDoc(docRef);
+                    showToast("Item removed across all devices");
+                } catch (e) {
+                    showToast("Failed to delete item.");
+                }
             };
         }
 
-        // Adjust quantity directly from list
-        function adjustQuantity(barcode, delta) {
-            if (inventory[barcode]) {
-                const newQty = inventory[barcode].qty + delta;
-                if (newQty > 0) {
-                    inventory[barcode].qty = newQty;
-                } else if (newQty === 0) {
-                     inventory[barcode].qty = 0;
-                }
-                inventory[barcode].lastUpdated = new Date().toISOString();
-                saveInventory();
+        async function adjustQuantity(barcode, delta) {
+            if (!currentUser || !db || !inventory[barcode]) return;
+            
+            const newQty = inventory[barcode].qty + delta;
+            const finalQty = Math.max(0, newQty); // Prevent negative stock
+            
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'inventory', barcode);
+                await updateDoc(docRef, {
+                    qty: finalQty,
+                    lastUpdated: new Date().toISOString()
+                });
+            } catch (e) {
+                showToast("Failed to update quantity.");
             }
         }
 
-
         // --- UI Rendering ---
-
         function renderInventory() {
             const listEl = document.getElementById('inventory-list');
             const searchTerm = document.getElementById('search-inventory').value.toLowerCase();
@@ -585,7 +535,6 @@
             });
         }
 
-
         // --- Modal Handling ---
         const modal = document.getElementById('item-modal');
         const modalContent = document.getElementById('item-modal-content');
@@ -604,13 +553,11 @@
             modal.classList.remove('hidden');
             modal.classList.add('flex');
             
-            // Animation trick
             setTimeout(() => {
                 modalContent.classList.remove('scale-95', 'opacity-0');
                 modalContent.classList.add('scale-100', 'opacity-100');
             }, 10);
 
-            // Focus on name input if it's new
             if (!item.name) {
                 document.getElementById('modal-name').focus();
             }
@@ -623,33 +570,37 @@
             setTimeout(() => {
                 modal.classList.add('hidden');
                 modal.classList.remove('flex');
-            }, 200); // match transition duration
+            }, 200); 
         }
 
-        // Modal Form Submit
-        document.getElementById('item-details-form').addEventListener('submit', (e) => {
+        // Modal Form Submit (Save to Cloud)
+        document.getElementById('item-details-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const barcode = document.getElementById('modal-original-barcode').value;
             
-            if (inventory[barcode]) {
-                inventory[barcode].name = document.getElementById('modal-name').value;
-                inventory[barcode].category = document.getElementById('modal-category').value;
-                inventory[barcode].qty = parseInt(document.getElementById('modal-qty').value, 10);
-                
+            if (currentUser && db && inventory[barcode]) {
                 const priceVal = document.getElementById('modal-price').value;
-                inventory[barcode].price = priceVal ? parseFloat(priceVal) : 0;
-                
-                inventory[barcode].lastUpdated = new Date().toISOString();
-                
-                saveInventory();
-                showToast("Item details saved");
-                closeItemModal();
+                const updates = {
+                    name: document.getElementById('modal-name').value,
+                    category: document.getElementById('modal-category').value,
+                    qty: parseInt(document.getElementById('modal-qty').value, 10),
+                    price: priceVal ? parseFloat(priceVal) : 0,
+                    lastUpdated: new Date().toISOString()
+                };
+
+                try {
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'inventory', barcode);
+                    await updateDoc(docRef, updates);
+                    showToast("Item details saved globally");
+                    closeItemModal();
+                } catch (error) {
+                    showToast("Failed to save updates.");
+                }
             }
         });
 
         document.getElementById('modal-cancel').addEventListener('click', closeItemModal);
         
-        // Modal Qty buttons
         document.getElementById('modal-qty-minus').addEventListener('click', () => {
             const input = document.getElementById('modal-qty');
             if (input.value > 0) input.value = parseInt(input.value) - 1;
@@ -659,11 +610,8 @@
             input.value = parseInt(input.value) + 1;
         });
 
-        // Close modal on outside click
         modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                closeItemModal();
-            }
+            if (e.target === modal) closeItemModal();
         });
 
         // --- Export to CSV ---
@@ -674,11 +622,9 @@
             }
 
             let csvContent = "data:text/csv;charset=utf-8,";
-            // Header
             csvContent += "Barcode,Item Name,Category,Quantity,Price,Last Updated\n";
 
             for (const [barcode, data] of Object.entries(inventory)) {
-                // Escape quotes and wrap strings in quotes to handle commas within fields
                 const name = `"${(data.name || '').replace(/"/g, '""')}"`;
                 const category = `"${(data.category || '').replace(/"/g, '""')}"`;
                 const date = new Date(data.lastUpdated).toLocaleDateString();
@@ -702,7 +648,7 @@
 
         document.getElementById('export-csv-btn').addEventListener('click', exportToCSV);
 
-        // --- Clear All ---
+        // --- Clear All (Cloud) ---
         document.getElementById('clear-all-btn').addEventListener('click', () => {
              const overlay = document.createElement('div');
             overlay.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 backdrop-blur-sm';
@@ -710,9 +656,9 @@
                 <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full border-t-4 border-red-500">
                     <div class="flex items-center gap-3 mb-4 text-red-600">
                         <i class="fas fa-exclamation-triangle text-3xl"></i>
-                        <h3 class="text-xl font-bold">Wipe Inventory?</h3>
+                        <h3 class="text-xl font-bold">Wipe Cloud Inventory?</h3>
                     </div>
-                    <p class="text-gray-700 mb-6">This action will permanently delete ALL items from your local storage. This cannot be undone.</p>
+                    <p class="text-gray-700 mb-6">This action will permanently delete ALL items from the shared database for ALL users. This cannot be undone.</p>
                     <div class="flex justify-end gap-3">
                         <button id="cancel-wipe" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-100 font-medium">Cancel</button>
                         <button id="confirm-wipe" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium shadow-md">Yes, Wipe Data</button>
@@ -722,49 +668,24 @@
             document.body.appendChild(overlay);
             
             document.getElementById('cancel-wipe').onclick = () => overlay.remove();
-            document.getElementById('confirm-wipe').onclick = () => {
-                inventory = {};
-                saveInventory();
-                showToast("All inventory data cleared");
+            document.getElementById('confirm-wipe').onclick = async () => {
                 overlay.remove();
+                if (!currentUser || !db) return;
+                
+                showToast("Wiping database...", 5000);
+                const keys = Object.keys(inventory);
+                
+                // Delete docs one by one
+                for (const key of keys) {
+                    try {
+                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'inventory', key);
+                        await deleteDoc(docRef);
+                    } catch (e) {
+                        console.error("Error deleting", key);
+                    }
+                }
+                showToast("Database cleared!");
             };
-        });
-        
-        // Settings UI Logic
-        const settingsToggle = document.getElementById('toggle-settings');
-        const settingsContent = document.getElementById('settings-content');
-        const settingsChevron = document.getElementById('settings-chevron');
-        
-        settingsToggle.addEventListener('click', () => {
-            settingsContent.classList.toggle('hidden');
-            settingsContent.classList.toggle('flex');
-            settingsChevron.classList.toggle('rotate-180');
-        });
-
-        document.getElementById('save-settings-btn').addEventListener('click', () => {
-            appSettings.googleFormUrl = document.getElementById('google-form-url').value.trim();
-            appSettings.syncEnabled = document.getElementById('sync-enabled').checked;
-            
-            if (appSettings.syncEnabled && !appSettings.googleFormUrl.includes('entry.')) {
-                showToast("URL doesn't look right. Please ensure it's the 'Pre-filled' link.");
-                return;
-            }
-            
-            localStorage.setItem(SETTINGS_KEY, JSON.stringify(appSettings));
-            showToast("Settings saved!");
-            
-            // Close settings accordion
-            settingsContent.classList.add('hidden');
-            settingsContent.classList.remove('flex');
-            settingsChevron.classList.remove('rotate-180');
-        });
-        
-        document.getElementById('sync-enabled').addEventListener('change', (e) => {
-            appSettings.syncEnabled = e.target.checked;
-            localStorage.setItem(SETTINGS_KEY, JSON.stringify(appSettings));
-            if (e.target.checked && !appSettings.googleFormUrl) {
-                showToast("Remember to add your Google Form URL!");
-            }
         });
 
         // Search listener
@@ -777,38 +698,29 @@
             const val = input.value.trim();
             if (val) {
                 handleBarcodeResult(val);
-                input.value = ''; // clear input
+                input.value = '';
             }
         });
 
-
-
         // --- Barcode Scanner Setup ---
-        
         function onScanSuccess(decodedText, decodedResult) {
-            // Prevent multiple rapid scans of the same item
-            // html5-qrcode already has some debouncing, but we'll pause scanning briefly
             if (isScannerRunning) {
                 handleBarcodeResult(decodedText);
             }
         }
 
         function onScanFailure(error) {
-            // handle scan failure, usually better to ignore and keep scanning
-            // console.warn(`Code scan error = ${error}`);
+            // Ignored to allow continuous scanning
         }
 
         function startScanner() {
             const btn = document.getElementById('toggle-camera-btn');
             
             if (!html5QrcodeScanner) {
-                // Initialize for the first time
-                // Use a lower fps and qrbox size for better performance on mobile
                 html5QrcodeScanner = new Html5Qrcode("reader");
             }
 
             if (isScannerRunning) {
-                // Stop scanner
                 html5QrcodeScanner.stop().then((ignore) => {
                     isScannerRunning = false;
                     btn.innerHTML = '<i class="fas fa-play mr-1"></i> Start Camera';
@@ -818,8 +730,6 @@
                     showToast("Error stopping camera");
                 });
             } else {
-                // Start scanner
-                // Prefer back camera
                 const config = { fps: 10, qrbox: { width: 250, height: 150 } };
                 
                 html5QrcodeScanner.start(
@@ -840,7 +750,6 @@
         }
 
         document.getElementById('toggle-camera-btn').addEventListener('click', startScanner);
-
 
         // --- Navigation Logic ---
         const viewScanner = document.getElementById('view-scanner');
@@ -866,9 +775,8 @@
                 navInventory.classList.replace('bg-blue-500', 'bg-blue-700');
                 navScanner.classList.replace('bg-blue-700', 'bg-blue-500');
                 
-                // Stop camera if navigating away to save battery
                 if (isScannerRunning && html5QrcodeScanner) {
-                    startScanner(); // calling it while running stops it
+                    startScanner(); // Stop camera
                 }
             }
         }
@@ -876,16 +784,10 @@
         navScanner.addEventListener('click', () => switchView('scanner'));
         navInventory.addEventListener('click', () => switchView('inventory'));
 
-
-        // --- Initialization ---
+        // Load empty state initially, Firebase listener will populate it
         window.addEventListener('DOMContentLoaded', () => {
-            // Load saved data
-            loadInventory();
-            
-            // Auto-start camera if permissions allow (optional, usually better to let user click)
-            // setTimeout(startScanner, 500); 
+            renderInventory(); 
         });
-
     </script>
 </body>
 </html>
