@@ -43,8 +43,13 @@
                 <h1 class="text-xl font-bold">PBIS Store</h1>
                 <p id="userWelcome" class="text-xs text-blue-200"></p>
             </div>
-            <div id="cloudStatus" class="text-yellow-300" title="Connected">
-                <i class="fas fa-cloud text-xl"></i>
+            <div class="flex items-center gap-4">
+                <div id="cloudStatus" class="text-yellow-300" title="Connected">
+                    <i class="fas fa-cloud text-xl"></i>
+                </div>
+                <button id="signOutBtn" class="text-blue-200 hover:text-white transition-colors" title="Sign Out">
+                    <i class="fas fa-sign-out-alt text-xl"></i>
+                </button>
             </div>
         </header>
 
@@ -285,6 +290,32 @@
             renderInventory();
         }
 
+        // --- Sign Out Logic ---
+        document.getElementById('signOutBtn').addEventListener('click', () => {
+            // Stop scanner if running
+            if (isScanning && scanner) {
+                scanner.stop().then(() => {
+                    isScanning = false;
+                    resetScannerBtn();
+                });
+            }
+
+            // Clear credentials
+            currentUserRole = null;
+            currentUserName = null;
+
+            // Reset UI
+            document.getElementById('loginInput').value = '';
+            document.getElementById('loginBtn').innerHTML = 'Sign In <i class="fas fa-arrow-right ml-2"></i>';
+            document.getElementById('appScreen').classList.add('hidden');
+            document.getElementById('loginScreen').classList.remove('hidden');
+            document.getElementById('tab-admin').classList.add('hidden');
+            
+            // Switch back to scanner tab for next login
+            switchTab('scanner');
+            showToast("Signed out successfully.");
+        });
+
         // --- Tab Navigation Logic ---
         window.switchTab = function(tabName) {
             if (tabName !== 'scanner' && isScanning && scanner) {
@@ -335,7 +366,6 @@
 
             let addedCount = 0;
             for (const name of lines) {
-                // Generate random 5-digit ID
                 let privateId = Math.floor(10000 + Math.random() * 90000).toString();
                 
                 await setDoc(doc(db, "students", privateId), {
