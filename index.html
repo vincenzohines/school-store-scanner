@@ -2,570 +2,784 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>PBIS Store System</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PBIS Points Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/html5-qrcode"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4F46E5', // Indigo
+                        secondary: '#10B981', // Emerald
+                        accent: '#F59E0B', // Amber
+                        dark: '#1F2937', // Gray 800
+                        light: '#F3F4F6', // Gray 100
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        body { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
-        .tab-active { border-bottom: 3px solid #3b82f6; color: #1d4ed8; font-weight: bold; }
-        .tab-inactive { color: #6b7280; border-bottom: 3px solid transparent; }
+        body { font-family: 'Inter', sans-serif; background-color: #F3F4F6; }
+        /* Hide number input spinners */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
-<body class="bg-slate-50 min-h-screen font-sans text-gray-800">
+<body class="text-gray-800 antialiased min-h-screen flex flex-col">
 
-    <!-- LOGIN SCREEN -->
-    <div id="loginScreen" class="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-100">
-        <div class="bg-white p-8 rounded-2xl shadow-lg w-full max-w-sm text-center">
-            <div class="bg-blue-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
-                <i class="fas fa-store text-2xl text-white"></i>
+    <nav class="bg-primary text-white shadow-md">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-star text-accent text-2xl"></i>
+                <h1 class="text-2xl font-bold tracking-tight">PBIS Rewards Tracker</h1>
             </div>
-            <h1 class="text-2xl font-bold text-gray-800 mb-1">PBIS Store</h1>
-            <p class="text-sm text-gray-500 mb-8">Enter your Private ID to continue</p>
-            
-            <input type="password" id="loginInput" class="w-full border-2 border-gray-200 rounded-xl p-4 text-center text-2xl tracking-widest font-mono mb-4 focus:outline-none focus:border-blue-500 transition-colors" placeholder="•••••">
-            
-            <button id="loginBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-md transition-colors text-lg flex justify-center items-center">
-                Sign In <i class="fas fa-arrow-right ml-2"></i>
-            </button>
-            <div id="loginStatus" class="mt-4 text-sm text-yellow-600 h-5">Connecting to network...</div>
-        </div>
-    </div>
-
-    <!-- MAIN APP SCREEN (Hidden initially) -->
-    <div id="appScreen" class="hidden pb-20">
-        <!-- Header -->
-        <header class="bg-blue-700 text-white p-4 shadow-md flex justify-between items-center sticky top-0 z-10">
             <div>
-                <h1 class="text-xl font-bold">PBIS Store</h1>
-                <p id="userWelcome" class="text-xs text-blue-200"></p>
-            </div>
-            <div class="flex items-center gap-4">
-                <div id="cloudStatus" class="text-yellow-300" title="Connected">
-                    <i class="fas fa-cloud text-xl"></i>
-                </div>
-                <button id="signOutBtn" class="text-blue-200 hover:text-white transition-colors" title="Sign Out">
-                    <i class="fas fa-sign-out-alt text-xl"></i>
+                <button id="navStudentBtn" class="px-4 py-2 bg-white text-primary rounded-lg font-semibold shadow hover:bg-gray-100 transition duration-200 mr-2" onclick="switchView('student')">
+                    <i class="fa-solid fa-user-graduate mr-1"></i> Student Login
+                </button>
+                <button id="navAdminBtn" class="px-4 py-2 bg-primary border border-white text-white rounded-lg font-semibold shadow hover:bg-white hover:text-primary transition duration-200" onclick="showAdminLoginModal()">
+                    <i class="fa-solid fa-chalkboard-user mr-1"></i> Teacher Admin
                 </button>
             </div>
-        </header>
+        </div>
+    </nav>
 
-        <!-- Navigation Tabs -->
-        <nav class="bg-white shadow-sm flex sticky top-[72px] z-10">
-            <button onclick="switchTab('scanner')" id="tab-scanner" class="flex-1 py-3 tab-active transition-all"><i class="fas fa-camera mr-1"></i> Scan</button>
-            <button onclick="switchTab('inventory')" id="tab-inventory" class="flex-1 py-3 tab-inactive transition-all"><i class="fas fa-list mr-1"></i> Inventory</button>
-            <button onclick="switchTab('admin')" id="tab-admin" class="flex-1 py-3 tab-inactive transition-all hidden"><i class="fas fa-shield-alt mr-1"></i> Admin</button>
-        </nav>
+    <main class="flex-grow max-w-6xl mx-auto w-full px-4 py-8 relative">
 
-        <main class="p-4 max-w-md mx-auto">
+        <!-- ========================================== -->
+        <!-- STUDENT VIEW -->
+        <!-- ========================================== -->
+        <div id="studentView" class="max-w-md mx-auto fade-in space-y-6">
             
-            <!-- SCANNER VIEW -->
-            <div id="view-scanner" class="block">
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-                    <p class="text-sm text-gray-500 mb-3 text-center">Point camera at a barcode to record item.</p>
-                    <div id="reader" class="w-full rounded overflow-hidden mb-4 bg-black min-h-[250px]"></div>
-                    <button id="startScanBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors text-lg flex justify-center items-center">
-                        <i class="fas fa-camera mr-2"></i> Start Scanner
+            <!-- Login & Dashboard Card -->
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+                <div class="bg-primary p-6 text-center text-white">
+                    <i class="fa-solid fa-id-card text-5xl mb-3 text-accent"></i>
+                    <h2 class="text-2xl font-bold">Check Your Points</h2>
+                    <p class="text-sm opacity-90">Select your name and enter your PIN.</p>
+                </div>
+                
+                <div id="studentLoginForm" class="p-6">
+                    <div class="mb-5">
+                        <label class="block text-gray-700 text-sm font-bold mb-2" for="studentSelect">
+                            Who are you?
+                        </label>
+                        <div class="relative">
+                            <select id="studentSelect" class="block appearance-none w-full bg-gray-50 border border-gray-300 text-gray-700 py-3 px-4 pr-8 rounded-lg leading-tight focus:outline-none focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/50 text-lg">
+                                <option value="">-- Select your name --</option>
+                                <!-- Options populated via JS -->
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                                <i class="fa-solid fa-chevron-down"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-6">
+                        <label class="block text-gray-700 text-sm font-bold mb-2" for="studentPin">
+                            Enter 4-Digit PIN
+                        </label>
+                        <input type="password" id="studentPin" inputmode="numeric" pattern="[0-9]*" maxlength="4" class="shadow-sm appearance-none border border-gray-300 rounded-lg w-full py-3 px-4 text-gray-700 text-center text-2xl tracking-widest leading-tight focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition" placeholder="••••">
+                    </div>
+
+                    <div id="studentLoginError" class="hidden mb-4 p-3 bg-red-100 text-red-700 border border-red-400 rounded text-sm text-center">
+                        Incorrect PIN or no student selected. Try again.
+                    </div>
+
+                    <button onclick="loginStudent()" class="w-full bg-secondary hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-200 flex justify-center items-center text-lg">
+                        <i class="fa-solid fa-unlock mr-2"></i> Check Points
                     </button>
                 </div>
-            </div>
 
-            <!-- INVENTORY VIEW -->
-            <div id="view-inventory" class="hidden">
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div class="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-                        <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wider">Store Database</h2>
-                        <button id="exportBtn" class="text-xs text-blue-700 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-3 py-1.5 rounded font-semibold transition-colors">
-                            <i class="fas fa-download mr-1"></i> CSV
-                        </button>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
-                            <thead>
-                                <tr class="bg-white text-xs text-gray-400 border-b">
-                                    <th class="p-3 font-semibold">Item</th>
-                                    <th class="p-3 font-semibold text-right">Pts</th>
-                                    <th class="p-3 font-semibold text-right">Qty</th>
-                                </tr>
-                            </thead>
-                            <tbody id="inventoryList" class="text-sm divide-y divide-gray-100 bg-white">
-                                <!-- Items populate here -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ADMIN VIEW -->
-            <div id="view-admin" class="hidden">
-                <!-- Manual Entry (Admin Only) -->
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6 border-l-4 border-l-blue-500">
-                    <h2 class="text-sm font-bold text-blue-700 uppercase tracking-wider mb-3"><i class="fas fa-keyboard mr-1"></i> Manual Entry Override</h2>
-                    <div class="flex gap-2">
-                        <input type="text" id="manualBarcode" placeholder="Type barcode..." class="flex-1 border border-gray-300 rounded-lg p-3 focus:outline-none focus:border-blue-500">
-                        <button id="manualSubmitBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-lg font-semibold transition-colors">Add</button>
-                    </div>
-                </div>
-
-                <!-- Student Management -->
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
-                    <div class="p-4 bg-gray-50 border-b border-gray-200">
-                        <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wider"><i class="fas fa-users mr-1"></i> Student Roster</h2>
-                        <p class="text-xs text-gray-400 mt-1">Generate private IDs for student access.</p>
-                    </div>
+                <div id="studentDashboard" class="hidden p-6 text-center">
+                    <button onclick="logoutStudent()" class="text-gray-500 hover:text-gray-700 text-sm font-semibold mb-4 flex items-center justify-center w-full">
+                        <i class="fa-solid fa-arrow-left mr-1"></i> Back
+                    </button>
+                    <h3 class="text-xl font-semibold text-gray-700 mb-2">Hello, <span id="dashStudentName" class="text-primary font-bold"></span>!</h3>
+                    <p class="text-gray-500 mb-6">Here is your current PBIS balance:</p>
                     
-                    <!-- Single Add -->
-                    <div class="p-4 flex gap-2 bg-white">
-                        <input type="text" id="newStudentName" placeholder="Single Student Name..." class="flex-1 border border-gray-300 rounded-lg p-2 text-sm focus:outline-none focus:border-blue-500">
-                        <button id="addStudentBtn" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">Add</button>
+                    <div class="inline-block relative">
+                        <!-- Confetti container -->
+                        <div id="confettiContainer" class="absolute inset-0 pointer-events-none"></div>
+                        
+                        <div class="bg-gradient-to-br from-yellow-100 to-amber-200 border-4 border-accent rounded-full h-48 w-48 flex flex-col items-center justify-center shadow-xl mx-auto mb-6 relative overflow-hidden">
+                            <i class="fa-solid fa-star text-accent/20 text-6xl absolute top-2 right-2"></i>
+                            <span id="dashStudentPoints" class="text-6xl font-black text-gray-800 drop-shadow-sm z-10">0</span>
+                            <span class="text-sm font-bold text-gray-600 uppercase tracking-wider z-10 mt-1">Points</span>
+                        </div>
                     </div>
 
-                    <!-- Bulk Add -->
-                    <div class="p-4 border-t border-dashed border-gray-200 bg-gray-50">
-                        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Bulk Import</h3>
-                        <textarea id="bulkStudentList" rows="3" placeholder="Paste a list of names here (one per line)..." class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:outline-none focus:border-blue-500 mb-2"></textarea>
-                        <button id="bulkAddBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
-                            <i class="fas fa-file-import mr-1"></i> Import Roster
+                    <p class="text-sm text-gray-500 italic mt-4">Keep up the great work!</p>
+                </div>
+            </div>
+
+            <!-- Student Leaderboard Card -->
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+                <div class="bg-gray-800 p-4 border-b border-gray-700 flex items-center justify-between">
+                    <h3 class="text-lg font-bold text-white"><i class="fa-solid fa-trophy text-accent mr-2"></i> Top 5 Leaderboard</h3>
+                </div>
+                <ul id="studentLeaderboard" class="divide-y divide-gray-100 p-2">
+                    <!-- Populated by JS -->
+                </ul>
+            </div>
+
+        </div>
+
+        <!-- ========================================== -->
+        <!-- ADMIN/TEACHER VIEW -->
+        <!-- ========================================== -->
+        <div id="adminView" class="hidden fade-in">
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+                <div class="bg-dark p-6 text-white flex justify-between items-center flex-wrap gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold"><i class="fa-solid fa-users-gear text-accent mr-2"></i> Class Management</h2>
+                        <p class="text-sm text-gray-300">Manage students, view PINs, and update points.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="showBulkAddModal()" class="bg-indigo-500 hover:bg-indigo-600 text-white py-2 px-4 rounded-lg shadow text-sm font-semibold transition">
+                            <i class="fa-solid fa-users text-white mr-1"></i> Bulk Add
+                        </button>
+                        <button onclick="showAddStudentModal()" class="bg-secondary hover:bg-emerald-600 text-white py-2 px-4 rounded-lg shadow text-sm font-semibold transition">
+                            <i class="fa-solid fa-plus mr-1"></i> Add Student
+                        </button>
+                        <button onclick="confirmResetPoints()" class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-lg shadow text-sm font-semibold transition">
+                            <i class="fa-solid fa-rotate-left mr-1"></i> Reset All Points
                         </button>
                     </div>
+                </div>
 
-                    <div class="overflow-x-auto bg-white border-t border-gray-200">
-                        <table class="w-full text-left border-collapse">
-                            <tbody id="studentList" class="text-sm divide-y divide-gray-100">
-                                <!-- Students populate here -->
-                            </tbody>
-                        </table>
+                <!-- Admin Leaderboard Strip -->
+                <div class="bg-gradient-to-r from-gray-100 to-white border-b border-gray-200 p-4">
+                    <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3"><i class="fa-solid fa-trophy text-accent mr-1"></i> Top 5 Recipients</h3>
+                    <div id="adminLeaderboard" class="flex flex-wrap gap-3">
+                        <!-- Populated by JS -->
                     </div>
                 </div>
-            </div>
 
-        </main>
-    </div>
+                <!-- Admin Table Controls -->
+                <div class="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                    <div class="relative w-64">
+                        <input type="text" id="searchInput" onkeyup="filterStudents()" placeholder="Search students..." class="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-gray-400"></i>
+                    </div>
+                    <div class="text-sm text-gray-600 font-semibold">
+                        Total Students: <span id="totalStudentsCount">0</span>
+                    </div>
+                </div>
 
-    <!-- New Item Modal -->
-    <div id="itemModal" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center p-4 z-50 backdrop-blur-sm transition-opacity">
-        <div class="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-            <div class="flex items-center text-blue-600 mb-4">
-                <i class="fas fa-plus-circle text-2xl mr-2"></i>
-                <h2 class="text-xl font-bold text-gray-800">New Item Scanned</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-100 text-gray-600 uppercase text-xs leading-normal border-b border-gray-200">
+                                <th class="py-3 px-6 text-left cursor-pointer hover:bg-gray-200 transition" onclick="sortTable('name')">Student Name <i class="fa-solid fa-sort ml-1 text-gray-400"></i></th>
+                                <th class="py-3 px-6 text-center">PIN Code</th>
+                                <th class="py-3 px-6 text-center cursor-pointer hover:bg-gray-200 transition" onclick="sortTable('points')">Current Points <i class="fa-solid fa-sort ml-1 text-gray-400"></i></th>
+                                <th class="py-3 px-6 text-center">Quick Actions</th>
+                                <th class="py-3 px-6 text-right">Manage</th>
+                            </tr>
+                        </thead>
+                        <tbody id="studentTableBody" class="text-gray-700 text-sm font-medium">
+                            <!-- Rows populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div id="emptyState" class="hidden p-10 text-center text-gray-500">
+                    <i class="fa-regular fa-folder-open text-4xl mb-3"></i>
+                    <p class="text-lg">No students found. Add a student to get started.</p>
+                </div>
             </div>
-            <p class="text-sm text-gray-500 mb-5 pb-4 border-b border-gray-100">Barcode: <span id="modalBarcodeDisplay" class="font-mono font-bold text-gray-800 bg-gray-100 px-2 py-1 rounded"></span></p>
+        </div>
+    </main>
+
+    <!-- Admin Login Modal -->
+    <div id="adminLoginModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50 p-4 fade-in">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6">
+            <h3 class="text-xl font-bold mb-2 text-dark"><i class="fa-solid fa-lock text-red-500 mr-2"></i> Teacher Access</h3>
+            <p class="text-sm text-gray-500 mb-4">Enter master password to access settings.</p>
             
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Reward Name</label>
-                    <input type="text" id="itemName" class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:border-blue-500" placeholder="e.g. Takis, Notebook">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Category</label>
-                    <input type="text" id="itemCategory" class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:border-blue-500" placeholder="e.g. Snacks, Supplies">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Points Value</label>
-                    <input type="number" id="itemPoints" class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:border-blue-500 text-lg font-bold text-blue-600" placeholder="0">
-                </div>
-            </div>
-
-            <div class="mt-8 flex gap-3">
-                <button id="cancelModalBtn" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-lg font-bold transition-colors">Cancel</button>
-                <button id="saveItemBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold shadow-md transition-colors">Save Reward</button>
+            <input type="password" id="adminPassword" class="w-full border border-gray-300 rounded-lg p-3 mb-2 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Password">
+            
+            <div id="adminLoginError" class="hidden text-red-500 text-xs mb-4 font-semibold">Incorrect password.</div>
+            
+            <div class="flex justify-end space-x-2 mt-4">
+                <button onclick="closeModals()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition">Cancel</button>
+                <button onclick="verifyAdmin()" class="px-4 py-2 bg-primary text-white rounded-lg shadow hover:bg-indigo-700 transition">Login</button>
             </div>
         </div>
     </div>
 
-    <!-- Toast Notification -->
-    <div id="toast" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-full shadow-lg transition-opacity duration-300 opacity-0 pointer-events-none z-50 font-medium text-sm flex items-center">
-        <i class="fas fa-info-circle mr-2 text-blue-400"></i>
-        <span id="toastMsg">Message</span>
+    <!-- Add Student Modal -->
+    <div id="addStudentModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50 p-4 fade-in">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6">
+            <h3 class="text-xl font-bold mb-4 text-dark"><i class="fa-solid fa-user-plus text-secondary mr-2"></i> Add New Student</h3>
+            
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="newStudentName">First & Last Name</label>
+            <input type="text" id="newStudentName" class="w-full border border-gray-300 rounded-lg p-3 mb-4 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="e.g. Jane Doe">
+            
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="newStudentPin">PIN (Auto-generated if blank)</label>
+            <div class="flex space-x-2 mb-4">
+                <input type="text" id="newStudentPin" maxlength="4" pattern="[0-9]*" class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-primary text-center tracking-widest font-mono" placeholder="1234">
+                <button onclick="generateRandomPin()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 rounded-lg transition" title="Generate Random PIN">
+                    <i class="fa-solid fa-dice"></i>
+                </button>
+            </div>
+
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="newStudentPoints">Starting Points</label>
+            <input type="number" id="newStudentPoints" value="0" class="w-full border border-gray-300 rounded-lg p-3 mb-6 focus:outline-none focus:ring-2 focus:ring-primary">
+            
+            <div class="flex justify-end space-x-2">
+                <button onclick="closeModals()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition">Cancel</button>
+                <button onclick="saveNewStudent()" class="px-4 py-2 bg-secondary text-white rounded-lg shadow hover:bg-emerald-600 transition">Save Student</button>
+            </div>
+        </div>
     </div>
 
+    <!-- Bulk Add Students Modal -->
+    <div id="bulkAddModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50 p-4 fade-in">
+        <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
+            <h3 class="text-xl font-bold mb-2 text-dark"><i class="fa-solid fa-users text-indigo-500 mr-2"></i> Bulk Add Students</h3>
+            <p class="text-sm text-gray-500 mb-4">Paste a list of student names below. Put each name on a new line. PINs will be auto-generated.</p>
+            
+            <textarea id="bulkStudentList" rows="8" class="w-full border border-gray-300 rounded-lg p-3 mb-4 focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm" placeholder="Alice Smith&#10;Bob Jones&#10;Charlie Brown"></textarea>
+            
+            <div class="flex justify-between items-center">
+                <div class="text-sm text-gray-600">
+                    Starting Points:
+                    <input type="number" id="bulkStartingPoints" value="0" class="w-20 border border-gray-300 rounded p-1 ml-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+                <div class="flex space-x-2">
+                    <button onclick="closeModals()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition">Cancel</button>
+                    <button onclick="processBulkAdd()" class="px-4 py-2 bg-indigo-500 text-white rounded-lg shadow hover:bg-indigo-600 transition">Import List</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert Modal / Toast -->
+    <div id="toastNotification" class="fixed bottom-5 right-5 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-xl transform translate-y-20 opacity-0 transition-all duration-300 z-50 flex items-center">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-secondary mr-3 text-xl"></i>
+        <span id="toastMessage" class="font-medium">Action successful.</span>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- FIREBASE AND JAVASCRIPT SETUP -->
+    <!-- ========================================== -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 
-        // *** ADMIN MASTER PIN *** 
-        const ADMIN_PIN = "12345"; 
-
-        // Database Configuration
+        // Firebase Configuration (Syntax Error Fixed)
         const firebaseConfig = {
-            apiKey: "AIzaSyC3Z7qr7OUx_8gY4sz-SN324mbmcwpcCt4",
-            authDomain: "school-store-db-e2ace.firebaseapp.com",
-            projectId: "school-store-db-e2ace",
-            storageBucket: "school-store-db-e2ace.firebasestorage.app",
-            messagingSenderId: "838354562801",
-            appId: "1:838354562801:web:0715be7bfda084c66b4350"
+            apiKey: "AIzaSyAi9jCji3yjvZwJCaZN2y6vflf97Gv212Y",
+            authDomain: "pbis-point-checker-f7981.firebaseapp.com",
+            projectId: "pbis-point-checker-f7981",
+            storageBucket: "pbis-point-checker-f7981.firebasestorage.app",
+            messagingSenderId: "582835295518",
+            appId: "1:582835295518:web:43fdbd20c377661998650f"
         };
 
+        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // State Variables
-        let scanner = null;
-        let isScanning = false;
-        let currentBarcode = null;
-        let inventoryData = {};
-        let studentData = {};
-        
-        let currentUserRole = null; 
-        let currentUserName = null;
-        let isFirebaseReady = false;
+        // Application State
+        window.students = [];
+        window.currentSort = { column: 'name', asc: true };
+        const ADMIN_PASS = '122470'; 
 
-        signInAnonymously(auth).catch((error) => { console.error("Auth Error", error); });
-
-        onAuthStateChanged(auth, (user) => {
-            const statusLabel = document.getElementById('loginStatus');
-            if (user) {
-                isFirebaseReady = true;
-                statusLabel.textContent = "System Ready. Enter ID.";
-                statusLabel.className = "mt-4 text-sm text-green-600 h-5";
-                
-                onSnapshot(collection(db, "inventory"), (snapshot) => {
-                    inventoryData = {};
-                    snapshot.forEach((doc) => { inventoryData[doc.id] = doc.data(); });
-                    if(currentUserRole) renderInventory();
-                });
-
-                onSnapshot(collection(db, "students"), (snapshot) => {
-                    studentData = {};
-                    snapshot.forEach((doc) => { studentData[doc.id] = doc.data(); });
-                    if(currentUserRole === 'admin') renderStudents();
-                });
-
-            } else {
-                statusLabel.textContent = "Connection Lost.";
-                statusLabel.className = "mt-4 text-sm text-red-600 h-5";
+        // Listen for real-time updates from Firebase
+        onSnapshot(collection(db, "students"), (snapshot) => {
+            window.students = [];
+            snapshot.forEach((doc) => {
+                window.students.push({ id: doc.id, ...doc.data() });
+            });
+            window.populateStudentDropdown();
+            window.renderLeaderboard(); // Automatically updates leaderboards on changes
+            
+            // If admin view is open, refresh table
+            if (!document.getElementById('adminView').classList.contains('hidden')) {
+                window.renderAdminTable(document.getElementById('searchInput').value);
             }
-        });
 
-        // --- Login Logic ---
-        document.getElementById('loginBtn').addEventListener('click', async () => {
-            if (!isFirebaseReady) {
-                showToast("Still connecting to cloud. Please wait...");
-                return;
-            }
-            
-            const inputVal = document.getElementById('loginInput').value.trim();
-            const btn = document.getElementById('loginBtn');
-            
-            if(!inputVal) return;
-            
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
-
-            if (inputVal === ADMIN_PIN) {
-                currentUserRole = 'admin';
-                currentUserName = 'Admin';
-                launchApp();
-            } else {
-                const docRef = doc(db, "students", inputVal);
-                const docSnap = await getDoc(docRef);
-                
-                if (docSnap.exists()) {
-                    currentUserRole = 'student';
-                    currentUserName = docSnap.data().name;
-                    launchApp();
-                } else {
-                    showToast("Invalid ID. Try again.");
-                    document.getElementById('loginInput').value = '';
-                    btn.innerHTML = 'Sign In <i class="fas fa-arrow-right ml-2"></i>';
+            // If a student is currently looking at their dashboard, update their points live
+            const loggedInId = document.getElementById('studentSelect').value;
+            if (loggedInId && !document.getElementById('studentDashboard').classList.contains('hidden')) {
+                const updatedStudent = window.students.find(s => s.id === loggedInId);
+                if (updatedStudent) {
+                    const currentDisplayed = parseInt(document.getElementById('dashStudentPoints').innerText);
+                    window.animateValue("dashStudentPoints", currentDisplayed, updatedStudent.points, 1000);
+                    if(updatedStudent.points > currentDisplayed) {
+                        window.createConfetti();
+                    }
                 }
             }
         });
 
-        function launchApp() {
-            document.getElementById('loginScreen').classList.add('hidden');
-            document.getElementById('appScreen').classList.remove('hidden');
-            document.getElementById('userWelcome').textContent = `Logged in as: ${currentUserName}`;
-            document.getElementById('cloudStatus').className = "text-green-400";
-            
-            if (currentUserRole === 'admin') {
-                document.getElementById('tab-admin').classList.remove('hidden');
-                renderStudents();
-            }
-            
-            renderInventory();
+        // Core Functions exposed to window
+        window.generateId = function() {
+            return Math.random().toString(36).substr(2, 9);
         }
 
-        // --- Sign Out Logic ---
-        document.getElementById('signOutBtn').addEventListener('click', () => {
-            // Stop scanner if running
-            if (isScanning && scanner) {
-                scanner.stop().then(() => {
-                    isScanning = false;
-                    resetScannerBtn();
-                });
+        window.saveData = async function(studentData) {
+            try {
+                await setDoc(doc(db, "students", studentData.id), studentData);
+            } catch (e) {
+                console.error("Error adding document: ", e);
+                window.showToast("Database Error", "error");
             }
+        }
 
-            // Clear credentials
-            currentUserRole = null;
-            currentUserName = null;
-
-            // Reset UI
-            document.getElementById('loginInput').value = '';
-            document.getElementById('loginBtn').innerHTML = 'Sign In <i class="fas fa-arrow-right ml-2"></i>';
-            document.getElementById('appScreen').classList.add('hidden');
-            document.getElementById('loginScreen').classList.remove('hidden');
-            document.getElementById('tab-admin').classList.add('hidden');
-            
-            // Switch back to scanner tab for next login
-            switchTab('scanner');
-            showToast("Signed out successfully.");
-        });
-
-        // --- Tab Navigation Logic ---
-        window.switchTab = function(tabName) {
-            if (tabName !== 'scanner' && isScanning && scanner) {
-                scanner.stop().then(() => {
-                    isScanning = false;
-                    resetScannerBtn();
-                });
+        window.deleteData = async function(studentId) {
+            try {
+                await deleteDoc(doc(db, "students", studentId));
+            } catch (e) {
+                console.error("Error deleting document: ", e);
             }
+        }
 
-            ['scanner', 'inventory', 'admin'].forEach(t => {
-                document.getElementById(`tab-${t}`).className = `flex-1 py-3 transition-all ${t === 'admin' && currentUserRole !== 'admin' ? 'hidden' : 'tab-inactive'}`;
-                document.getElementById(`view-${t}`).classList.add('hidden');
-            });
-
-            document.getElementById(`tab-${tabName}`).className = "flex-1 py-3 tab-active transition-all";
-            document.getElementById(`view-${tabName}`).classList.remove('hidden');
-        };
-
-        // --- Admin: Student Management ---
-        document.getElementById('addStudentBtn').addEventListener('click', async () => {
-            const nameInput = document.getElementById('newStudentName');
-            const name = nameInput.value.trim();
-            if (!name) return;
-
-            const privateId = Math.floor(10000 + Math.random() * 90000).toString();
+        window.switchView = function(view) {
+            document.getElementById('studentView').classList.add('hidden');
+            document.getElementById('adminView').classList.add('hidden');
             
-            await setDoc(doc(db, "students", privateId), {
-                id: privateId, name: name, addedOn: new Date().toISOString()
-            });
-            
-            nameInput.value = '';
-            showToast(`${name} added! ID: ${privateId}`);
-        });
+            document.getElementById('studentLoginForm').classList.remove('hidden');
+            document.getElementById('studentDashboard').classList.add('hidden');
+            document.getElementById('studentPin').value = '';
+            document.getElementById('studentSelect').value = '';
+            document.getElementById('studentLoginError').classList.add('hidden');
 
-        // Bulk Add Feature
-        document.getElementById('bulkAddBtn').addEventListener('click', async () => {
-            const textarea = document.getElementById('bulkStudentList');
-            const lines = textarea.value.split('\\n').map(name => name.trim()).filter(name => name.length > 0);
+            document.getElementById('navStudentBtn').className = "px-4 py-2 bg-primary border border-white text-white rounded-lg font-semibold shadow hover:bg-white hover:text-primary transition duration-200 mr-2";
+            document.getElementById('navAdminBtn').className = "px-4 py-2 bg-primary border border-white text-white rounded-lg font-semibold shadow hover:bg-white hover:text-primary transition duration-200";
+
+            if (view === 'student') {
+                document.getElementById('studentView').classList.remove('hidden');
+                document.getElementById('navStudentBtn').className = "px-4 py-2 bg-white text-primary rounded-lg font-semibold shadow hover:bg-gray-100 transition duration-200 mr-2";
+                window.populateStudentDropdown();
+            } else if (view === 'admin') {
+                document.getElementById('adminView').classList.remove('hidden');
+                document.getElementById('navAdminBtn').className = "px-4 py-2 bg-white text-primary rounded-lg font-semibold shadow hover:bg-gray-100 transition duration-200";
+                window.renderAdminTable();
+            }
+        }
+
+        window.renderLeaderboard = function() {
+            // Sort students by points (highest first) and take top 5
+            const top5 = [...window.students]
+                .filter(s => s.points > 0) // Optional: Hide students with 0 points from the board
+                .sort((a, b) => b.points - a.points)
+                .slice(0, 5);
+
+            const studentBoard = document.getElementById('studentLeaderboard');
+            const adminBoard = document.getElementById('adminLeaderboard');
             
-            if (lines.length === 0) {
-                showToast("Please paste at least one name.");
+            if (top5.length === 0) {
+                const emptyMsg = '<li class="p-4 text-center text-sm text-gray-500 w-full">No points awarded yet. Time to earn some!</li>';
+                studentBoard.innerHTML = emptyMsg;
+                adminBoard.innerHTML = '<span class="text-sm text-gray-400 italic mt-1">No points awarded yet.</span>';
                 return;
             }
 
-            const btn = document.getElementById('bulkAddBtn');
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing...';
-            btn.disabled = true;
+            let studentHtml = '';
+            let adminHtml = '';
+
+            top5.forEach((student, index) => {
+                let medal = `<span class="text-gray-400 font-bold w-6 text-center">${index + 1}.</span>`;
+                if (index === 0) medal = '<i class="fa-solid fa-medal text-yellow-400 text-xl drop-shadow-md"></i>';
+                if (index === 1) medal = '<i class="fa-solid fa-medal text-gray-400 text-xl drop-shadow-md"></i>';
+                if (index === 2) medal = '<i class="fa-solid fa-medal text-amber-600 text-xl drop-shadow-md"></i>';
+
+                // Vertical List for Student View
+                studentHtml += `
+                    <li class="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 flex justify-center">${medal}</div>
+                            <span class="font-bold text-gray-700">${student.name}</span>
+                        </div>
+                        <div class="bg-accent/20 text-accent-700 font-black px-3 py-1 rounded-full text-sm">
+                            ${student.points} pts
+                        </div>
+                    </li>
+                `;
+
+                // Horizontal Badges for Admin View
+                adminHtml += `
+                    <div class="flex items-center bg-white border border-gray-200 rounded-full pl-2 pr-3 py-1 shadow-sm">
+                        <div class="mr-2">${medal}</div>
+                        <span class="text-sm font-semibold text-gray-800 mr-2">${student.name}</span>
+                        <span class="text-xs font-black bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">${student.points}</span>
+                    </div>
+                `;
+            });
+
+            studentBoard.innerHTML = studentHtml;
+            adminBoard.innerHTML = adminHtml;
+        }
+
+        window.populateStudentDropdown = function() {
+            const select = document.getElementById('studentSelect');
+            const currentValue = select.value;
+            select.innerHTML = '<option value="">-- Select your name --</option>';
+            
+            const sortedStudents = [...window.students].sort((a, b) => a.name.localeCompare(b.name));
+            
+            sortedStudents.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.id;
+                opt.textContent = s.name;
+                select.appendChild(opt);
+            });
+            if(currentValue) select.value = currentValue;
+        }
+
+        window.loginStudent = function() {
+            const studentId = document.getElementById('studentSelect').value;
+            const enteredPin = document.getElementById('studentPin').value;
+            const errorDiv = document.getElementById('studentLoginError');
+
+            if (!studentId || !enteredPin) {
+                errorDiv.textContent = "Please select your name and enter your PIN.";
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            const student = window.students.find(s => s.id === studentId);
+
+            if (student && student.pin === enteredPin) {
+                errorDiv.classList.add('hidden');
+                window.showStudentDashboard(student);
+            } else {
+                errorDiv.textContent = "Incorrect PIN. Please try again.";
+                errorDiv.classList.remove('hidden');
+                document.getElementById('studentPin').value = '';
+            }
+        }
+
+        window.showStudentDashboard = function(student) {
+            document.getElementById('studentLoginForm').classList.add('hidden');
+            document.getElementById('studentDashboard').classList.remove('hidden');
+            document.getElementById('dashStudentName').textContent = student.name;
+            window.animateValue("dashStudentPoints", 0, student.points, 1000);
+            if(student.points > 0) window.createConfetti();
+        }
+
+        window.logoutStudent = function() {
+            document.getElementById('studentDashboard').classList.add('hidden');
+            document.getElementById('studentLoginForm').classList.remove('hidden');
+            document.getElementById('studentPin').value = '';
+            document.getElementById('studentSelect').value = '';
+            document.getElementById('confettiContainer').innerHTML = ''; 
+        }
+
+        window.animateValue = function(id, start, end, duration) {
+            if (start === end) {
+                document.getElementById(id).innerHTML = end;
+                return;
+            }
+            var range = end - start;
+            var current = start;
+            var increment = end > start ? 1 : -1;
+            var stepTime = Math.abs(Math.floor(duration / range));
+            if(stepTime < 10) stepTime = 10;
+            if(stepTime > 50) stepTime = 50;
+            increment = Math.ceil(range / (duration / stepTime));
+
+            var obj = document.getElementById(id);
+            var timer = setInterval(function() {
+                current += increment;
+                if ((increment > 0 && current >= end) || (increment < 0 && current <= end)) {
+                    current = end;
+                    clearInterval(timer);
+                }
+                obj.innerHTML = current;
+            }, stepTime);
+        }
+
+        window.createConfetti = function() {
+            const container = document.getElementById('confettiContainer');
+            container.innerHTML = '';
+            const colors = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#3B82F6'];
+            
+            for(let i=0; i<30; i++) {
+                const conf = document.createElement('div');
+                conf.className = 'absolute w-2 h-2 rounded-sm';
+                conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                conf.style.left = Math.random() * 100 + '%';
+                conf.style.top = '-10px';
+                conf.style.opacity = Math.random() + 0.5;
+                conf.style.transform = `rotate(${Math.random() * 360}deg)`;
+                
+                const duration = Math.random() * 2 + 1;
+                conf.animate([
+                    { transform: `translateY(0) rotate(0deg)`, opacity: 1 },
+                    { transform: `translateY(${Math.random() * 100 + 100}px) rotate(${Math.random() * 360}deg)`, opacity: 0 }
+                ], {
+                    duration: duration * 1000,
+                    easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+                    fill: 'forwards'
+                });
+                container.appendChild(conf);
+            }
+        }
+
+        window.showAdminLoginModal = function() {
+            document.getElementById('adminLoginModal').classList.remove('hidden');
+            document.getElementById('adminLoginModal').classList.add('flex');
+            document.getElementById('adminPassword').value = '';
+            document.getElementById('adminLoginError').classList.add('hidden');
+            document.getElementById('adminPassword').focus();
+        }
+
+        window.verifyAdmin = function() {
+            const pass = document.getElementById('adminPassword').value;
+            if (pass === ADMIN_PASS) {
+                window.closeModals();
+                window.switchView('admin');
+                window.showToast('Logged in successfully', 'success');
+            } else {
+                document.getElementById('adminLoginError').classList.remove('hidden');
+            }
+        }
+
+        document.getElementById('adminPassword').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') window.verifyAdmin();
+        });
+
+        window.renderAdminTable = function(filterText = '') {
+            const tbody = document.getElementById('studentTableBody');
+            const emptyState = document.getElementById('emptyState');
+            tbody.innerHTML = '';
+
+            let displayStudents = window.students.filter(s => s.name.toLowerCase().includes(filterText.toLowerCase()));
+            document.getElementById('totalStudentsCount').textContent = displayStudents.length;
+
+            if (displayStudents.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            displayStudents.sort((a, b) => {
+                let valA = a[window.currentSort.column];
+                let valB = b[window.currentSort.column];
+                if (typeof valA === 'string') valA = valA.toLowerCase();
+                if (typeof valB === 'string') valB = valB.toLowerCase();
+                if (valA < valB) return window.currentSort.asc ? -1 : 1;
+                if (valA > valB) return window.currentSort.asc ? 1 : -1;
+                return 0;
+            });
+
+            displayStudents.forEach(student => {
+                const tr = document.createElement('tr');
+                tr.className = "border-b border-gray-200 hover:bg-gray-50 transition";
+                tr.innerHTML = `
+                    <td class="py-3 px-6 text-left whitespace-nowrap font-bold text-gray-800">
+                        <i class="fa-solid fa-user text-gray-400 mr-2"></i> ${student.name}
+                    </td>
+                    <td class="py-3 px-6 text-center font-mono tracking-widest text-primary font-bold bg-gray-100 rounded">
+                        ${student.pin}
+                    </td>
+                    <td class="py-3 px-6 text-center">
+                        <input type="number" 
+                               value="${student.points}" 
+                               onchange="setPoints('${student.id}', this.value)" 
+                               class="w-20 text-center font-bold py-1 px-2 rounded-lg border border-accent/30 bg-accent/10 text-accent-700 shadow-sm text-lg focus:outline-none focus:ring-2 focus:ring-accent focus:bg-white transition"
+                               title="Type to set exact points">
+                    </td>
+                    <td class="py-3 px-6 text-center">
+                        <div class="flex item-center justify-center space-x-1">
+                            <button onclick="modifyPoints('${student.id}', -5)" class="w-8 h-8 rounded-full bg-red-100 text-red-600 hover:bg-red-500 hover:text-white transition font-bold text-xs" title="-5 Points">-5</button>
+                            <button onclick="modifyPoints('${student.id}', -1)" class="w-8 h-8 rounded-full bg-red-100 text-red-600 hover:bg-red-500 hover:text-white transition font-bold text-xs" title="-1 Point">-1</button>
+                            <button onclick="modifyPoints('${student.id}', 1)" class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 hover:bg-emerald-500 hover:text-white transition font-bold text-xs" title="+1 Point">+1</button>
+                            <button onclick="modifyPoints('${student.id}', 5)" class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 hover:bg-emerald-500 hover:text-white transition font-bold text-xs" title="+5 Points">+5</button>
+                        </div>
+                    </td>
+                    <td class="py-3 px-6 text-right">
+                        <button onclick="deleteStudent('${student.id}')" class="text-gray-400 hover:text-red-500 transition" title="Delete Student">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        window.sortTable = function(column) {
+            if (window.currentSort.column === column) {
+                window.currentSort.asc = !window.currentSort.asc;
+            } else {
+                window.currentSort.column = column;
+                window.currentSort.asc = true;
+            }
+            window.renderAdminTable(document.getElementById('searchInput').value);
+        }
+
+        window.filterStudents = function() {
+            window.renderAdminTable(document.getElementById('searchInput').value);
+        }
+
+        window.setPoints = function(studentId, newPoints) {
+            const student = window.students.find(s => s.id === studentId);
+            if (student) {
+                let parsedPoints = parseInt(newPoints);
+                if (isNaN(parsedPoints) || parsedPoints < 0) parsedPoints = 0;
+                
+                if (student.points !== parsedPoints) {
+                    student.points = parsedPoints;
+                    window.saveData(student);
+                    window.showToast(`Points for ${student.name} set to ${parsedPoints}.`, 'success');
+                } else {
+                    window.renderAdminTable(document.getElementById('searchInput').value); 
+                }
+            }
+        }
+
+        window.modifyPoints = function(studentId, amount) {
+            const student = window.students.find(s => s.id === studentId);
+            if (student) {
+                student.points += amount;
+                if (student.points < 0) student.points = 0; 
+                window.saveData(student);
+                const actionStr = amount > 0 ? `Added ${amount}` : `Deducted ${Math.abs(amount)}`;
+                window.showToast(`${actionStr} points for ${student.name}.`, amount > 0 ? 'success' : 'warning');
+            }
+        }
+
+        window.showAddStudentModal = function() {
+            document.getElementById('addStudentModal').classList.remove('hidden');
+            document.getElementById('addStudentModal').classList.add('flex');
+            document.getElementById('newStudentName').value = '';
+            document.getElementById('newStudentPin').value = '';
+            document.getElementById('newStudentPoints').value = '0';
+            document.getElementById('newStudentName').focus();
+        }
+
+        window.generateRandomPin = function() {
+            document.getElementById('newStudentPin').value = Math.floor(1000 + Math.random() * 9000).toString();
+        }
+
+        window.saveNewStudent = function() {
+            const name = document.getElementById('newStudentName').value.trim();
+            let pin = document.getElementById('newStudentPin').value.trim();
+            let points = parseInt(document.getElementById('newStudentPoints').value) || 0;
+
+            if (!name) return window.showToast("Student name is required.", "error");
+
+            if (!pin) {
+                pin = Math.floor(1000 + Math.random() * 9000).toString();
+            } else if (!/^\d{4}$/.test(pin)) {
+                return window.showToast("PIN must be exactly 4 digits.", "error");
+            }
+
+            if (window.students.some(s => s.pin === pin)) {
+                window.showToast("That PIN is already in use. Generating a new one...", "warning");
+                pin = Math.floor(1000 + Math.random() * 9000).toString();
+            }
+
+            const newStudent = { id: window.generateId(), name: name, pin: pin, points: points };
+            window.saveData(newStudent);
+            window.closeModals();
+            window.showToast(`${name} added successfully!`, "success");
+        }
+
+        window.deleteStudent = function(studentId) {
+            const student = window.students.find(s => s.id === studentId);
+            if (confirm(`Are you sure you want to permanently delete ${student.name}?`)) {
+                window.deleteData(studentId);
+                window.showToast(`${student.name} deleted.`, "success");
+            }
+        }
+
+        window.confirmResetPoints = function() {
+            if (confirm("WARNING: Are you sure you want to reset ALL student points to ZERO? This cannot be undone.")) {
+                window.students.forEach(s => {
+                    s.points = 0;
+                    window.saveData(s);
+                });
+                window.showToast("All student points reset to zero.", "warning");
+            }
+        }
+
+        window.closeModals = function() {
+            document.getElementById('adminLoginModal').classList.add('hidden');
+            document.getElementById('adminLoginModal').classList.remove('flex');
+            document.getElementById('addStudentModal').classList.add('hidden');
+            document.getElementById('addStudentModal').classList.remove('flex');
+            document.getElementById('bulkAddModal').classList.add('hidden');
+            document.getElementById('bulkAddModal').classList.remove('flex');
+        }
+
+        window.showBulkAddModal = function() {
+            document.getElementById('bulkAddModal').classList.remove('hidden');
+            document.getElementById('bulkAddModal').classList.add('flex');
+            document.getElementById('bulkStudentList').value = '';
+            document.getElementById('bulkStartingPoints').value = '0';
+            document.getElementById('bulkStudentList').focus();
+        }
+
+        window.processBulkAdd = async function() {
+            const rawList = document.getElementById('bulkStudentList').value;
+            const startingPoints = parseInt(document.getElementById('bulkStartingPoints').value) || 0;
+            
+            if (!rawList.trim()) return window.showToast("Please enter at least one name.", "warning");
+
+            const names = rawList.split('\n').map(n => n.trim()).filter(n => n.length > 0);
+            if (names.length === 0) return window.showToast("No valid names found to import.", "warning");
 
             let addedCount = 0;
-            for (const name of lines) {
-                let privateId = Math.floor(10000 + Math.random() * 90000).toString();
-                
-                await setDoc(doc(db, "students", privateId), {
-                    id: privateId,
-                    name: name,
-                    addedOn: new Date().toISOString()
-                });
+            for (const name of names) {
+                let pin;
+                let isUnique = false;
+                while (!isUnique) {
+                    pin = Math.floor(1000 + Math.random() * 9000).toString();
+                    isUnique = !window.students.some(s => s.pin === pin);
+                }
+                await window.saveData({ id: window.generateId(), name: name, pin: pin, points: startingPoints });
                 addedCount++;
             }
 
-            textarea.value = '';
-            btn.innerHTML = '<i class="fas fa-file-import mr-1"></i> Import Roster';
-            btn.disabled = false;
-            showToast(`Successfully added ${addedCount} students!`);
-        });
-
-        window.deleteStudent = async function(id) {
-            if (confirm("Revoke this student's access?")) {
-                await deleteDoc(doc(db, "students", id));
-                showToast("Access revoked.");
-            }
-        };
-
-        function renderStudents() {
-            const list = document.getElementById('studentList');
-            list.innerHTML = '';
-            const students = Object.values(studentData).sort((a, b) => a.name.localeCompare(b.name));
-            
-            students.forEach(student => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="p-3">
-                        <div class="font-bold text-gray-800">${student.name}</div>
-                    </td>
-                    <td class="p-3 text-right">
-                        <span class="bg-gray-100 border border-gray-200 text-gray-700 px-3 py-1 rounded font-mono font-bold tracking-wider">${student.id}</span>
-                    </td>
-                    <td class="p-3 text-right w-12">
-                        <button onclick="window.deleteStudent('${student.id}')" class="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 w-8 h-8 rounded-full inline-flex items-center justify-center transition-colors">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </td>
-                `;
-                list.appendChild(tr);
-            });
+            window.closeModals();
+            window.showToast(`Successfully imported ${addedCount} students!`, "success");
         }
 
-        // --- Core Inventory & Scanning Functions ---
-        async function processBarcode(barcode) {
-            if (isScanning && scanner) scanner.pause(true);
+        let toastTimeout;
+        window.showToast = function(message, type = 'success') {
+            const toast = document.getElementById('toastNotification');
+            const icon = document.getElementById('toastIcon');
+            const msgSpan = document.getElementById('toastMessage');
 
-            try {
-                const docRef = doc(db, "inventory", barcode);
-                const docSnap = await getDoc(docRef);
+            msgSpan.textContent = message;
 
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    await setDoc(docRef, {
-                        ...data,
-                        quantity: data.quantity + 1,
-                        lastUpdated: new Date().toISOString()
-                    });
-                    showToast(`+1 ${data.name} recorded!`);
-                    if (isScanning && scanner) scanner.resume();
-                } else {
-                    currentBarcode = barcode;
-                    document.getElementById('modalBarcodeDisplay').textContent = barcode;
-                    document.getElementById('itemName').value = '';
-                    document.getElementById('itemCategory').value = '';
-                    document.getElementById('itemPoints').value = '';
-                    document.getElementById('itemModal').classList.remove('hidden');
-                    document.getElementById('itemModal').classList.add('flex');
-                }
-            } catch (err) {
-                showToast("Database error.");
-                if (isScanning && scanner) scanner.resume();
+            if (type === 'success') {
+                toast.className = "fixed bottom-5 right-5 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-xl transform translate-y-0 opacity-100 transition-all duration-300 z-50 flex items-center";
+                icon.className = "fa-solid fa-circle-check text-secondary mr-3 text-xl";
+            } else if (type === 'error') {
+                toast.className = "fixed bottom-5 right-5 bg-red-600 text-white px-6 py-3 rounded-lg shadow-xl transform translate-y-0 opacity-100 transition-all duration-300 z-50 flex items-center";
+                icon.className = "fa-solid fa-circle-exclamation text-white mr-3 text-xl";
+            } else if (type === 'warning') {
+                toast.className = "fixed bottom-5 right-5 bg-accent text-white px-6 py-3 rounded-lg shadow-xl transform translate-y-0 opacity-100 transition-all duration-300 z-50 flex items-center";
+                icon.className = "fa-solid fa-triangle-exclamation text-white mr-3 text-xl";
             }
-        }
 
-        document.getElementById('manualSubmitBtn').addEventListener('click', () => {
-            const input = document.getElementById('manualBarcode');
-            const code = input.value.trim();
-            if (code) {
-                processBarcode(code);
-                input.value = '';
-            }
-        });
-
-        // Modal Controls
-        document.getElementById('saveItemBtn').addEventListener('click', async () => {
-            const name = document.getElementById('itemName').value || "Unnamed Reward";
-            const category = document.getElementById('itemCategory').value || "Misc";
-            const points = parseInt(document.getElementById('itemPoints').value) || 0;
-
-            await setDoc(doc(db, "inventory", currentBarcode), {
-                barcode: currentBarcode, name: name, category: category, points: points,
-                quantity: 1, lastUpdated: new Date().toISOString()
-            });
-
-            document.getElementById('itemModal').classList.add('hidden');
-            document.getElementById('itemModal').classList.remove('flex');
-            showToast("Reward saved!");
-            if (isScanning && scanner) scanner.resume();
-        });
-
-        document.getElementById('cancelModalBtn').addEventListener('click', () => {
-            document.getElementById('itemModal').classList.add('hidden');
-            document.getElementById('itemModal').classList.remove('flex');
-            if (isScanning && scanner) scanner.resume();
-        });
-
-        // Global Delete (Admin Only)
-        window.deleteItem = async function(barcode) {
-            if (currentUserRole !== 'admin') return;
-            if (confirm("Permanently delete this reward?")) {
-                await deleteDoc(doc(db, "inventory", barcode));
-                showToast("Reward deleted!");
-            }
-        };
-
-        // Scanner initialization
-        function resetScannerBtn() {
-            const btn = document.getElementById('startScanBtn');
-            btn.innerHTML = '<i class="fas fa-camera mr-2"></i> Start Scanner';
-            btn.classList.replace('bg-red-500', 'bg-blue-600');
-            btn.classList.replace('hover:bg-red-600', 'hover:bg-blue-700');
-        }
-
-        document.getElementById('startScanBtn').addEventListener('click', () => {
-            if (!isScanning) {
-                scanner = new Html5Qrcode("reader");
-                const config = { fps: 10, qrbox: { width: 250, height: 150 } };
-                
-                scanner.start({ facingMode: "environment" }, config, (decodedText) => {
-                    processBarcode(decodedText);
-                }).then(() => {
-                    isScanning = true;
-                    const btn = document.getElementById('startScanBtn');
-                    btn.innerHTML = '<i class="fas fa-stop mr-2"></i> Stop Scanner';
-                    btn.classList.replace('bg-blue-600', 'bg-red-500');
-                    btn.classList.replace('hover:bg-blue-700', 'hover:bg-red-600');
-                }).catch(err => { showToast("Camera access denied."); });
-            } else {
-                scanner.stop().then(() => {
-                    isScanning = false;
-                    resetScannerBtn();
-                });
-            }
-        });
-
-        function renderInventory() {
-            const list = document.getElementById('inventoryList');
-            list.innerHTML = '';
-            const items = Object.values(inventoryData).sort((a, b) => b.lastUpdated?.localeCompare(a.lastUpdated));
-            
-            items.forEach(item => {
-                const tr = document.createElement('tr');
-                
-                // Only show trash can if Admin
-                const deleteBtnHtml = currentUserRole === 'admin' 
-                    ? `<button onclick="window.deleteItem('${item.barcode}')" class="text-red-400 hover:text-red-600 ml-3 bg-red-50 hover:bg-red-100 w-7 h-7 rounded-full flex items-center justify-center transition-colors"><i class="fas fa-trash-alt text-xs"></i></button>`
-                    : '';
-
-                tr.innerHTML = `
-                    <td class="p-3">
-                        <div class="font-bold text-gray-800">${item.name}</div>
-                        <div class="text-xs text-gray-400 font-mono mt-0.5">${item.barcode}</div>
-                    </td>
-                    <td class="p-3 text-right">
-                        <span class="bg-blue-50 text-blue-700 px-2 py-1 rounded font-bold text-xs">${item.points} pts</span>
-                    </td>
-                    <td class="p-3">
-                        <div class="flex items-center justify-end">
-                            <span class="font-bold text-gray-800 text-lg">${item.quantity}</span>
-                            ${deleteBtnHtml}
-                        </div>
-                    </td>
-                `;
-                list.appendChild(tr);
-            });
-        }
-
-        document.getElementById('exportBtn').addEventListener('click', () => {
-            const headers = ["Barcode", "Name", "Category", "Points", "Quantity"];
-            let csvContent = headers.join(",") + "\\n";
-            Object.values(inventoryData).forEach(item => {
-                csvContent += `${item.barcode},"${item.name}","${item.category}",${item.points},${item.quantity}\\n`;
-            });
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement("a");
-            link.href = URL.createObjectURL(blob);
-            link.download = "PBIS_Reward_Inventory.csv";
-            link.click();
-        });
-
-        function showToast(message) {
-            const toast = document.getElementById('toast');
-            document.getElementById('toastMsg').textContent = message;
-            toast.classList.remove('opacity-0');
-            setTimeout(() => toast.classList.add('opacity-0'), 3000);
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
         }
     </script>
 </body>
