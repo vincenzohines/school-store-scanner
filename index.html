@@ -40,7 +40,8 @@
 </head>
 <body class="text-gray-800 antialiased min-h-screen flex flex-col">
 
-    <nav class="bg-primary text-white shadow-md">
+    <!-- Navigation -->
+    <nav class="bg-primary text-white shadow-md z-10">
         <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
             <div class="flex items-center space-x-2">
                 <i class="fa-solid fa-star text-accent text-2xl"></i>
@@ -57,12 +58,25 @@
         </div>
     </nav>
 
-    <main class="flex-grow max-w-6xl mx-auto w-full px-4 py-8 relative">
+    <main class="flex-grow max-w-6xl mx-auto w-full px-4 py-6 flex flex-col gap-6 relative">
+
+        <!-- ========================================== -->
+        <!-- GLOBAL TOP 5 LEADERBOARD BANNER -->
+        <!-- ========================================== -->
+        <div class="bg-white rounded-xl shadow-md border-l-4 border-accent p-4 flex flex-col md:flex-row items-center gap-4 fade-in w-full">
+            <div class="flex items-center space-x-2 min-w-max">
+                <i class="fa-solid fa-trophy text-accent text-2xl"></i>
+                <h2 class="font-bold text-gray-800 uppercase tracking-wide">Top 5 Leaders</h2>
+            </div>
+            <div id="globalLeaderboard" class="flex flex-wrap flex-grow gap-3 justify-start w-full">
+                <!-- JS will inject leaderboard badges here -->
+            </div>
+        </div>
 
         <!-- ========================================== -->
         <!-- STUDENT VIEW -->
         <!-- ========================================== -->
-        <div id="studentView" class="max-w-md mx-auto bg-white rounded-xl shadow-lg overflow-hidden fade-in">
+        <div id="studentView" class="max-w-md mx-auto bg-white rounded-xl shadow-lg overflow-hidden fade-in w-full">
             
             <!-- Login Form (Hidden once logged in) -->
             <div id="studentLoginContainer">
@@ -106,14 +120,6 @@
                     <i class="fa-solid fa-arrow-left mr-1"></i> Sign Out
                 </button>
 
-                <!-- TOP 5 LEADERBOARD STUDENT -->
-                <div class="bg-gray-50 rounded-xl p-4 mb-8 border border-gray-200 shadow-inner">
-                    <h3 class="text-md font-bold text-gray-800 mb-3 uppercase tracking-wider"><i class="fa-solid fa-trophy text-accent mr-2"></i> Top 5 Leaders</h3>
-                    <ul id="studentLeaderboard" class="space-y-2 text-left">
-                        <!-- Populated by JS -->
-                    </ul>
-                </div>
-
                 <!-- Personal Points Section -->
                 <h3 class="text-xl font-semibold text-gray-700 mb-2"><span id="dashStudentName" class="text-primary font-bold"></span>'s Points</h3>
                 <p class="text-gray-500 mb-6">Your current PBIS balance:</p>
@@ -134,7 +140,7 @@
         <!-- ========================================== -->
         <!-- ADMIN/TEACHER VIEW -->
         <!-- ========================================== -->
-        <div id="adminView" class="hidden fade-in">
+        <div id="adminView" class="hidden fade-in w-full">
             <div class="bg-white rounded-xl shadow-lg overflow-hidden flex flex-col">
                 
                 <div class="bg-dark p-6 text-white flex justify-between items-center flex-wrap gap-4">
@@ -152,14 +158,6 @@
                         <button onclick="confirmResetPoints()" class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-lg shadow text-sm font-semibold transition">
                             <i class="fa-solid fa-rotate-left mr-1"></i> Reset All Points
                         </button>
-                    </div>
-                </div>
-
-                <!-- TOP 5 LEADERBOARD ADMIN -->
-                <div class="bg-gray-50 border-b border-gray-200 p-6">
-                    <h3 class="text-lg font-bold text-gray-800 mb-4 uppercase tracking-wider"><i class="fa-solid fa-trophy text-accent mr-2"></i> Top 5 Leaderboard</h3>
-                    <div id="adminLeaderboard" class="grid grid-cols-2 md:grid-cols-5 gap-4">
-                        <!-- Populated by JS -->
                     </div>
                 </div>
 
@@ -358,3 +356,397 @@
             } else if (view === 'admin') {
                 document.getElementById('adminView').classList.remove('hidden');
                 document.getElementById('navAdminBtn').className = "px-4 py-2 bg-white text-primary rounded-lg font-semibold shadow hover:bg-gray-100 transition duration-200";
+                window.renderAdminTable();
+            }
+        }
+
+        window.renderLeaderboard = function() {
+            // Safely parse points to ensure accurate math
+            const top5 = [...window.students]
+                .map(s => ({ ...s, points: parseInt(s.points) || 0 }))
+                .filter(s => s.points > 0)
+                .sort((a, b) => b.points - a.points)
+                .slice(0, 5);
+
+            const board = document.getElementById('globalLeaderboard');
+            
+            if (top5.length === 0) {
+                board.innerHTML = '<span class="text-sm text-gray-400 italic">No points awarded yet. Time to earn some!</span>';
+                return;
+            }
+
+            let html = '';
+            top5.forEach((student, index) => {
+                let medal = `<span class="text-gray-500 font-black w-5 text-center">${index + 1}</span>`;
+                if (index === 0) medal = '<i class="fa-solid fa-medal text-yellow-400 text-xl drop-shadow-md"></i>';
+                if (index === 1) medal = '<i class="fa-solid fa-medal text-gray-400 text-xl drop-shadow-md"></i>';
+                if (index === 2) medal = '<i class="fa-solid fa-medal text-amber-700 text-xl drop-shadow-md"></i>';
+
+                html += `
+                    <div class="flex items-center bg-gray-50 border border-gray-200 rounded-full pl-2 pr-3 py-1 shadow-sm flex-grow md:flex-grow-0 justify-center">
+                        <div class="mr-2 flex items-center justify-center">${medal}</div>
+                        <span class="text-sm font-semibold text-gray-800 mr-2 whitespace-nowrap">${student.name}</span>
+                        <span class="text-xs font-black bg-primary text-white px-2 py-0.5 rounded-full">${student.points}</span>
+                    </div>
+                `;
+            });
+
+            board.innerHTML = html;
+        }
+
+        window.populateStudentDropdown = function() {
+            const select = document.getElementById('studentSelect');
+            const currentValue = select.value;
+            select.innerHTML = '<option value="">-- Select your name --</option>';
+            
+            const sortedStudents = [...window.students].sort((a, b) => a.name.localeCompare(b.name));
+            
+            sortedStudents.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.id;
+                opt.textContent = s.name;
+                select.appendChild(opt);
+            });
+            if(currentValue) select.value = currentValue;
+        }
+
+        window.loginStudent = function() {
+            const studentId = document.getElementById('studentSelect').value;
+            const enteredPin = document.getElementById('studentPin').value;
+            const errorDiv = document.getElementById('studentLoginError');
+
+            if (!studentId || !enteredPin) {
+                errorDiv.textContent = "Please select your name and enter your PIN.";
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            const student = window.students.find(s => s.id === studentId);
+
+            if (student && student.pin === enteredPin) {
+                errorDiv.classList.add('hidden');
+                window.showStudentDashboard(student);
+            } else {
+                errorDiv.textContent = "Incorrect PIN. Please try again.";
+                errorDiv.classList.remove('hidden');
+                document.getElementById('studentPin').value = '';
+            }
+        }
+
+        window.showStudentDashboard = function(student) {
+            document.getElementById('studentLoginContainer').classList.add('hidden');
+            document.getElementById('studentDashboard').classList.remove('hidden');
+            document.getElementById('dashStudentName').textContent = student.name;
+            window.animateValue("dashStudentPoints", 0, student.points, 1000);
+            if(student.points > 0) window.createConfetti();
+        }
+
+        window.logoutStudent = function() {
+            document.getElementById('studentDashboard').classList.add('hidden');
+            document.getElementById('studentLoginContainer').classList.remove('hidden');
+            document.getElementById('studentPin').value = '';
+            document.getElementById('studentSelect').value = '';
+            document.getElementById('confettiContainer').innerHTML = ''; 
+        }
+
+        window.animateValue = function(id, start, end, duration) {
+            if (start === end) {
+                document.getElementById(id).innerHTML = end;
+                return;
+            }
+            var range = end - start;
+            var current = start;
+            var increment = end > start ? 1 : -1;
+            var stepTime = Math.abs(Math.floor(duration / range));
+            if(stepTime < 10) stepTime = 10;
+            if(stepTime > 50) stepTime = 50;
+            increment = Math.ceil(range / (duration / stepTime));
+
+            var obj = document.getElementById(id);
+            var timer = setInterval(function() {
+                current += increment;
+                if ((increment > 0 && current >= end) || (increment < 0 && current <= end)) {
+                    current = end;
+                    clearInterval(timer);
+                }
+                obj.innerHTML = current;
+            }, stepTime);
+        }
+
+        window.createConfetti = function() {
+            const container = document.getElementById('confettiContainer');
+            container.innerHTML = '';
+            const colors = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#3B82F6'];
+            
+            for(let i=0; i<30; i++) {
+                const conf = document.createElement('div');
+                conf.className = 'absolute w-2 h-2 rounded-sm';
+                conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                conf.style.left = Math.random() * 100 + '%';
+                conf.style.top = '-10px';
+                conf.style.opacity = Math.random() + 0.5;
+                conf.style.transform = `rotate(${Math.random() * 360}deg)`;
+                
+                const duration = Math.random() * 2 + 1;
+                conf.animate([
+                    { transform: `translateY(0) rotate(0deg)`, opacity: 1 },
+                    { transform: `translateY(${Math.random() * 100 + 100}px) rotate(${Math.random() * 360}deg)`, opacity: 0 }
+                ], {
+                    duration: duration * 1000,
+                    easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+                    fill: 'forwards'
+                });
+                container.appendChild(conf);
+            }
+        }
+
+        window.showAdminLoginModal = function() {
+            document.getElementById('adminLoginModal').classList.remove('hidden');
+            document.getElementById('adminLoginModal').classList.add('flex');
+            document.getElementById('adminPassword').value = '';
+            document.getElementById('adminLoginError').classList.add('hidden');
+            document.getElementById('adminPassword').focus();
+        }
+
+        window.verifyAdmin = function() {
+            const pass = document.getElementById('adminPassword').value;
+            if (pass === ADMIN_PASS) {
+                window.closeModals();
+                window.switchView('admin');
+                window.showToast('Logged in successfully', 'success');
+            } else {
+                document.getElementById('adminLoginError').classList.remove('hidden');
+            }
+        }
+
+        document.getElementById('adminPassword').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') window.verifyAdmin();
+        });
+
+        window.renderAdminTable = function(filterText = '') {
+            const tbody = document.getElementById('studentTableBody');
+            const emptyState = document.getElementById('emptyState');
+            tbody.innerHTML = '';
+
+            let displayStudents = window.students.filter(s => s.name.toLowerCase().includes(filterText.toLowerCase()));
+            document.getElementById('totalStudentsCount').textContent = displayStudents.length;
+
+            if (displayStudents.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            displayStudents.sort((a, b) => {
+                let valA = a[window.currentSort.column];
+                let valB = b[window.currentSort.column];
+                if (typeof valA === 'string') valA = valA.toLowerCase();
+                if (typeof valB === 'string') valB = valB.toLowerCase();
+                if (valA < valB) return window.currentSort.asc ? -1 : 1;
+                if (valA > valB) return window.currentSort.asc ? 1 : -1;
+                return 0;
+            });
+
+            displayStudents.forEach(student => {
+                const tr = document.createElement('tr');
+                tr.className = "border-b border-gray-200 hover:bg-gray-50 transition";
+                tr.innerHTML = `
+                    <td class="py-3 px-6 text-left whitespace-nowrap font-bold text-gray-800">
+                        <i class="fa-solid fa-user text-gray-400 mr-2"></i> ${student.name}
+                    </td>
+                    <td class="py-3 px-6 text-center font-mono tracking-widest text-primary font-bold bg-gray-100 rounded">
+                        ${student.pin}
+                    </td>
+                    <td class="py-3 px-6 text-center">
+                        <input type="number" 
+                               value="${student.points}" 
+                               onchange="setPoints('${student.id}', this.value)" 
+                               class="w-20 text-center font-bold py-1 px-2 rounded-lg border border-accent/30 bg-accent/10 text-accent-700 shadow-sm text-lg focus:outline-none focus:ring-2 focus:ring-accent focus:bg-white transition"
+                               title="Type to set exact points">
+                    </td>
+                    <td class="py-3 px-6 text-center">
+                        <div class="flex item-center justify-center space-x-1">
+                            <button onclick="modifyPoints('${student.id}', -5)" class="w-8 h-8 rounded-full bg-red-100 text-red-600 hover:bg-red-500 hover:text-white transition font-bold text-xs" title="-5 Points">-5</button>
+                            <button onclick="modifyPoints('${student.id}', -1)" class="w-8 h-8 rounded-full bg-red-100 text-red-600 hover:bg-red-500 hover:text-white transition font-bold text-xs" title="-1 Point">-1</button>
+                            <button onclick="modifyPoints('${student.id}', 1)" class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 hover:bg-emerald-500 hover:text-white transition font-bold text-xs" title="+1 Point">+1</button>
+                            <button onclick="modifyPoints('${student.id}', 5)" class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 hover:bg-emerald-500 hover:text-white transition font-bold text-xs" title="+5 Points">+5</button>
+                        </div>
+                    </td>
+                    <td class="py-3 px-6 text-right">
+                        <button onclick="deleteStudent('${student.id}')" class="text-gray-400 hover:text-red-500 transition" title="Delete Student">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        window.sortTable = function(column) {
+            if (window.currentSort.column === column) {
+                window.currentSort.asc = !window.currentSort.asc;
+            } else {
+                window.currentSort.column = column;
+                window.currentSort.asc = true;
+            }
+            window.renderAdminTable(document.getElementById('searchInput').value);
+        }
+
+        window.filterStudents = function() {
+            window.renderAdminTable(document.getElementById('searchInput').value);
+        }
+
+        window.setPoints = function(studentId, newPoints) {
+            const student = window.students.find(s => s.id === studentId);
+            if (student) {
+                let parsedPoints = parseInt(newPoints);
+                if (isNaN(parsedPoints) || parsedPoints < 0) parsedPoints = 0;
+                
+                if (student.points !== parsedPoints) {
+                    student.points = parsedPoints;
+                    window.saveData(student);
+                    window.showToast(`Points for ${student.name} set to ${parsedPoints}.`, 'success');
+                } else {
+                    window.renderAdminTable(document.getElementById('searchInput').value); 
+                }
+            }
+        }
+
+        window.modifyPoints = function(studentId, amount) {
+            const student = window.students.find(s => s.id === studentId);
+            if (student) {
+                student.points = parseInt(student.points) || 0;
+                student.points += amount;
+                if (student.points < 0) student.points = 0; 
+                window.saveData(student);
+                const actionStr = amount > 0 ? `Added ${amount}` : `Deducted ${Math.abs(amount)}`;
+                window.showToast(`${actionStr} points for ${student.name}.`, amount > 0 ? 'success' : 'warning');
+            }
+        }
+
+        window.showAddStudentModal = function() {
+            document.getElementById('addStudentModal').classList.remove('hidden');
+            document.getElementById('addStudentModal').classList.add('flex');
+            document.getElementById('newStudentName').value = '';
+            document.getElementById('newStudentPin').value = '';
+            document.getElementById('newStudentPoints').value = '0';
+            document.getElementById('newStudentName').focus();
+        }
+
+        window.generateRandomPin = function() {
+            document.getElementById('newStudentPin').value = Math.floor(1000 + Math.random() * 9000).toString();
+        }
+
+        window.saveNewStudent = function() {
+            const name = document.getElementById('newStudentName').value.trim();
+            let pin = document.getElementById('newStudentPin').value.trim();
+            let points = parseInt(document.getElementById('newStudentPoints').value) || 0;
+
+            if (!name) return window.showToast("Student name is required.", "error");
+
+            if (!pin) {
+                pin = Math.floor(1000 + Math.random() * 9000).toString();
+            } else if (!/^\d{4}$/.test(pin)) {
+                return window.showToast("PIN must be exactly 4 digits.", "error");
+            }
+
+            if (window.students.some(s => s.pin === pin)) {
+                window.showToast("That PIN is already in use. Generating a new one...", "warning");
+                pin = Math.floor(1000 + Math.random() * 9000).toString();
+            }
+
+            const newStudent = { id: window.generateId(), name: name, pin: pin, points: points };
+            window.saveData(newStudent);
+            window.closeModals();
+            window.showToast(`${name} added successfully!`, "success");
+        }
+
+        window.deleteStudent = function(studentId) {
+            const student = window.students.find(s => s.id === studentId);
+            if (confirm(`Are you sure you want to permanently delete ${student.name}?`)) {
+                window.deleteData(studentId);
+                window.showToast(`${student.name} deleted.`, "success");
+            }
+        }
+
+        window.confirmResetPoints = function() {
+            if (confirm("WARNING: Are you sure you want to reset ALL student points to ZERO? This cannot be undone.")) {
+                window.students.forEach(s => {
+                    s.points = 0;
+                    window.saveData(s);
+                });
+                window.showToast("All student points reset to zero.", "warning");
+            }
+        }
+
+        window.closeModals = function() {
+            document.getElementById('adminLoginModal').classList.add('hidden');
+            document.getElementById('adminLoginModal').classList.remove('flex');
+            document.getElementById('addStudentModal').classList.add('hidden');
+            document.getElementById('addStudentModal').classList.remove('flex');
+            document.getElementById('bulkAddModal').classList.add('hidden');
+            document.getElementById('bulkAddModal').classList.remove('flex');
+        }
+
+        window.showBulkAddModal = function() {
+            document.getElementById('bulkAddModal').classList.remove('hidden');
+            document.getElementById('bulkAddModal').classList.add('flex');
+            document.getElementById('bulkStudentList').value = '';
+            document.getElementById('bulkStartingPoints').value = '0';
+            document.getElementById('bulkStudentList').focus();
+        }
+
+        window.processBulkAdd = async function() {
+            const rawList = document.getElementById('bulkStudentList').value;
+            const startingPoints = parseInt(document.getElementById('bulkStartingPoints').value) || 0;
+            
+            if (!rawList.trim()) return window.showToast("Please enter at least one name.", "warning");
+
+            const names = rawList.split('\n').map(n => n.trim()).filter(n => n.length > 0);
+            if (names.length === 0) return window.showToast("No valid names found to import.", "warning");
+
+            let addedCount = 0;
+            for (const name of names) {
+                let pin;
+                let isUnique = false;
+                while (!isUnique) {
+                    pin = Math.floor(1000 + Math.random() * 9000).toString();
+                    isUnique = !window.students.some(s => s.pin === pin);
+                }
+                await window.saveData({ id: window.generateId(), name: name, pin: pin, points: startingPoints });
+                addedCount++;
+            }
+
+            window.closeModals();
+            window.showToast(`Successfully imported ${addedCount} students!`, "success");
+        }
+
+        let toastTimeout;
+        window.showToast = function(message, type = 'success') {
+            const toast = document.getElementById('toastNotification');
+            const icon = document.getElementById('toastIcon');
+            const msgSpan = document.getElementById('toastMessage');
+
+            msgSpan.textContent = message;
+
+            if (type === 'success') {
+                toast.className = "fixed bottom-5 right-5 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-xl transform translate-y-0 opacity-100 transition-all duration-300 z-50 flex items-center";
+                icon.className = "fa-solid fa-circle-check text-secondary mr-3 text-xl";
+            } else if (type === 'error') {
+                toast.className = "fixed bottom-5 right-5 bg-red-600 text-white px-6 py-3 rounded-lg shadow-xl transform translate-y-0 opacity-100 transition-all duration-300 z-50 flex items-center";
+                icon.className = "fa-solid fa-circle-exclamation text-white mr-3 text-xl";
+            } else if (type === 'warning') {
+                toast.className = "fixed bottom-5 right-5 bg-accent text-white px-6 py-3 rounded-lg shadow-xl transform translate-y-0 opacity-100 transition-all duration-300 z-50 flex items-center";
+                icon.className = "fa-solid fa-triangle-exclamation text-white mr-3 text-xl";
+            }
+
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
