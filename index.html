@@ -479,7 +479,7 @@
             if (!item) return;
 
             const newQuantity = item.quantity + delta;
-            if (newQuantity < 0) return; // Prevent negative inventory
+            if (newQuantity < 0) return; 
 
             try {
                 await setDoc(doc(db, "inventory", barcode), {
@@ -489,6 +489,29 @@
                 });
             } catch (err) {
                 showToast("Error updating quantity.");
+            }
+        };
+
+        // Edit Name Function (Admin Only)
+        window.editItemName = async function(barcode) {
+            if (currentUserRole !== 'admin') return;
+            
+            const item = inventoryData[barcode];
+            if (!item) return;
+
+            const newName = prompt("Edit item name:", item.name);
+            
+            if (newName !== null && newName.trim() !== "") {
+                try {
+                    await setDoc(doc(db, "inventory", barcode), {
+                        ...item,
+                        name: newName.trim(),
+                        lastUpdated: new Date().toISOString()
+                    });
+                    showToast("Name updated!");
+                } catch (err) {
+                    showToast("Error updating name.");
+                }
             }
         };
 
@@ -539,14 +562,18 @@
             items.forEach(item => {
                 const tr = document.createElement('tr');
                 
-                // Only show trash can if Admin
+                // Admin Buttons
                 const deleteBtnHtml = currentUserRole === 'admin' 
                     ? `<button onclick="window.deleteItem('${item.barcode}')" class="text-red-400 hover:text-red-600 ml-2 bg-red-50 hover:bg-red-100 w-7 h-7 rounded-full flex items-center justify-center transition-colors"><i class="fas fa-trash-alt text-xs"></i></button>`
+                    : '';
+                    
+                const editBtnHtml = currentUserRole === 'admin'
+                    ? `<button onclick="window.editItemName('${item.barcode}')" class="text-blue-400 hover:text-blue-600 ml-2" title="Edit Name"><i class="fas fa-pencil-alt text-xs"></i></button>`
                     : '';
 
                 tr.innerHTML = `
                     <td class="p-3">
-                        <div class="font-bold text-gray-800">${item.name}</div>
+                        <div class="font-bold text-gray-800 flex items-center">${item.name}${editBtnHtml}</div>
                         <div class="text-xs text-gray-400 font-mono mt-0.5">${item.barcode}</div>
                     </td>
                     <td class="p-3 text-right">
