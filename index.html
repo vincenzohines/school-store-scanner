@@ -515,6 +515,34 @@
             }
         };
 
+        // Edit Points Function (Admin Only)
+        window.editItemPoints = async function(barcode) {
+            if (currentUserRole !== 'admin') return;
+            
+            const item = inventoryData[barcode];
+            if (!item) return;
+
+            const newPoints = prompt("Edit points value:", item.points);
+            
+            if (newPoints !== null && newPoints.trim() !== "") {
+                const parsedPoints = parseInt(newPoints);
+                if (!isNaN(parsedPoints)) {
+                    try {
+                        await setDoc(doc(db, "inventory", barcode), {
+                            ...item,
+                            points: parsedPoints,
+                            lastUpdated: new Date().toISOString()
+                        });
+                        showToast("Points updated!");
+                    } catch (err) {
+                        showToast("Error updating points.");
+                    }
+                } else {
+                    showToast("Invalid points value. Use numbers only.");
+                }
+            }
+        };
+
         // Global Delete (Admin Only)
         window.deleteItem = async function(barcode) {
             if (currentUserRole !== 'admin') return;
@@ -567,17 +595,24 @@
                     ? `<button onclick="window.deleteItem('${item.barcode}')" class="text-red-400 hover:text-red-600 ml-2 bg-red-50 hover:bg-red-100 w-7 h-7 rounded-full flex items-center justify-center transition-colors"><i class="fas fa-trash-alt text-xs"></i></button>`
                     : '';
                     
-                const editBtnHtml = currentUserRole === 'admin'
+                const editNameBtnHtml = currentUserRole === 'admin'
                     ? `<button onclick="window.editItemName('${item.barcode}')" class="text-blue-400 hover:text-blue-600 ml-2" title="Edit Name"><i class="fas fa-pencil-alt text-xs"></i></button>`
+                    : '';
+
+                const editPointsBtnHtml = currentUserRole === 'admin'
+                    ? `<button onclick="window.editItemPoints('${item.barcode}')" class="text-blue-400 hover:text-blue-600 ml-1" title="Edit Points"><i class="fas fa-pencil-alt text-[10px]"></i></button>`
                     : '';
 
                 tr.innerHTML = `
                     <td class="p-3">
-                        <div class="font-bold text-gray-800 flex items-center">${item.name}${editBtnHtml}</div>
+                        <div class="font-bold text-gray-800 flex items-center">${item.name}${editNameBtnHtml}</div>
                         <div class="text-xs text-gray-400 font-mono mt-0.5">${item.barcode}</div>
                     </td>
                     <td class="p-3 text-right">
-                        <span class="bg-blue-50 text-blue-700 px-2 py-1 rounded font-bold text-xs">${item.points} pts</span>
+                        <div class="flex items-center justify-end">
+                            <span class="bg-blue-50 text-blue-700 px-2 py-1 rounded font-bold text-xs">${item.points} pts</span>
+                            ${editPointsBtnHtml}
+                        </div>
                     </td>
                     <td class="p-3">
                         <div class="flex items-center justify-end gap-1">
