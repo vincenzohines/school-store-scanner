@@ -43,8 +43,13 @@
                 <h1 class="text-xl font-bold">PBIS Store</h1>
                 <p id="userWelcome" class="text-xs text-blue-200"></p>
             </div>
-            <div id="cloudStatus" class="text-yellow-300" title="Connected">
-                <i class="fas fa-cloud text-xl"></i>
+            <div class="flex items-center gap-4">
+                <div id="cloudStatus" class="text-yellow-300" title="Connected">
+                    <i class="fas fa-cloud text-xl"></i>
+                </div>
+                <button id="signOutBtn" class="text-blue-200 hover:text-white transition-colors" title="Sign Out">
+                    <i class="fas fa-sign-out-alt text-xl"></i>
+                </button>
             </div>
         </header>
 
@@ -83,7 +88,7 @@
                                 <tr class="bg-white text-xs text-gray-400 border-b">
                                     <th class="p-3 font-semibold">Item</th>
                                     <th class="p-3 font-semibold text-right">Pts</th>
-                                    <th class="p-3 font-semibold text-right">Qty</th>
+                                    <th class="p-3 font-semibold text-center">Qty</th>
                                 </tr>
                             </thead>
                             <tbody id="inventoryList" class="text-sm divide-y divide-gray-100 bg-white">
@@ -285,6 +290,28 @@
             renderInventory();
         }
 
+        // --- Sign Out Logic ---
+        document.getElementById('signOutBtn').addEventListener('click', () => {
+            if (isScanning && scanner) {
+                scanner.stop().then(() => {
+                    isScanning = false;
+                    resetScannerBtn();
+                });
+            }
+
+            currentUserRole = null;
+            currentUserName = null;
+
+            document.getElementById('loginInput').value = '';
+            document.getElementById('loginBtn').innerHTML = 'Sign In <i class="fas fa-arrow-right ml-2"></i>';
+            document.getElementById('appScreen').classList.add('hidden');
+            document.getElementById('loginScreen').classList.remove('hidden');
+            document.getElementById('tab-admin').classList.add('hidden');
+            
+            switchTab('scanner');
+            showToast("Signed out successfully.");
+        });
+
         // --- Tab Navigation Logic ---
         window.switchTab = function(tabName) {
             if (tabName !== 'scanner' && isScanning && scanner) {
@@ -322,7 +349,7 @@
         // Bulk Add Feature
         document.getElementById('bulkAddBtn').addEventListener('click', async () => {
             const textarea = document.getElementById('bulkStudentList');
-            const lines = textarea.value.split('\\n').map(name => name.trim()).filter(name => name.length > 0);
+            const lines = textarea.value.split('\n').map(name => name.trim()).filter(name => name.length > 0);
             
             if (lines.length === 0) {
                 showToast("Please paste at least one name.");
@@ -335,7 +362,6 @@
 
             let addedCount = 0;
             for (const name of lines) {
-                // Generate random 5-digit ID
                 let privateId = Math.floor(10000 + Math.random() * 90000).toString();
                 
                 await setDoc(doc(db, "students", privateId), {
@@ -447,6 +473,25 @@
             if (isScanning && scanner) scanner.resume();
         });
 
+        // Update Quantity Direct Function
+        window.updateQuantity = async function(barcode, delta) {
+            const item = inventoryData[barcode];
+            if (!item) return;
+
+            const newQuantity = item.quantity + delta;
+            if (newQuantity < 0) return; // Prevent negative inventory
+
+            try {
+                await setDoc(doc(db, "inventory", barcode), {
+                    ...item,
+                    quantity: newQuantity,
+                    lastUpdated: new Date().toISOString()
+                });
+            } catch (err) {
+                showToast("Error updating quantity.");
+            }
+        };
+
         // Global Delete (Admin Only)
         window.deleteItem = async function(barcode) {
             if (currentUserRole !== 'admin') return;
@@ -496,7 +541,7 @@
                 
                 // Only show trash can if Admin
                 const deleteBtnHtml = currentUserRole === 'admin' 
-                    ? `<button onclick="window.deleteItem('${item.barcode}')" class="text-red-400 hover:text-red-600 ml-3 bg-red-50 hover:bg-red-100 w-7 h-7 rounded-full flex items-center justify-center transition-colors"><i class="fas fa-trash-alt text-xs"></i></button>`
+                    ? `<button onclick="window.deleteItem('${item.barcode}')" class="text-red-400 hover:text-red-600 ml-2 bg-red-50 hover:bg-red-100 w-7 h-7 rounded-full flex items-center justify-center transition-colors"><i class="fas fa-trash-alt text-xs"></i></button>`
                     : '';
 
                 tr.innerHTML = `
@@ -508,8 +553,10 @@
                         <span class="bg-blue-50 text-blue-700 px-2 py-1 rounded font-bold text-xs">${item.points} pts</span>
                     </td>
                     <td class="p-3">
-                        <div class="flex items-center justify-end">
-                            <span class="font-bold text-gray-800 text-lg">${item.quantity}</span>
+                        <div class="flex items-center justify-end gap-1">
+                            <button onclick="window.updateQuantity('${item.barcode}', -1)" class="w-7 h-7 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded flex items-center justify-center transition-colors"><i class="fas fa-minus text-xs"></i></button>
+                            <span class="font-bold text-gray-800 text-lg w-8 text-center">${item.quantity}</span>
+                            <button onclick="window.updateQuantity('${item.barcode}', 1)" class="w-7 h-7 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded flex items-center justify-center transition-colors"><i class="fas fa-plus text-xs"></i></button>
                             ${deleteBtnHtml}
                         </div>
                     </td>
@@ -520,9 +567,9 @@
 
         document.getElementById('exportBtn').addEventListener('click', () => {
             const headers = ["Barcode", "Name", "Category", "Points", "Quantity"];
-            let csvContent = headers.join(",") + "\\n";
+            let csvContent = headers.join(",") + "\n";
             Object.values(inventoryData).forEach(item => {
-                csvContent += `${item.barcode},"${item.name}","${item.category}",${item.points},${item.quantity}\\n`;
+                csvContent += `${item.barcode},"${item.name}","${item.category}",${item.points},${item.quantity}\n`;
             });
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
