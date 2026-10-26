@@ -54,22 +54,44 @@
         </header>
 
         <!-- Navigation Tabs -->
-        <nav class="bg-white shadow-sm flex sticky top-[72px] z-10">
-            <button onclick="switchTab('scanner')" id="tab-scanner" class="flex-1 py-3 tab-active transition-all"><i class="fas fa-camera mr-1"></i> Scan</button>
-            <button onclick="switchTab('inventory')" id="tab-inventory" class="flex-1 py-3 tab-inactive transition-all"><i class="fas fa-list mr-1"></i> Inventory</button>
-            <button onclick="switchTab('admin')" id="tab-admin" class="flex-1 py-3 tab-inactive transition-all hidden"><i class="fas fa-shield-alt mr-1"></i> Admin</button>
+        <nav class="bg-white shadow-sm flex sticky top-[72px] z-10 overflow-x-auto">
+            <button onclick="switchTab('scanner')" id="tab-scanner" class="flex-1 py-3 tab-active transition-all min-w-[80px]"><i class="fas fa-camera mr-1"></i> Scan</button>
+            <button onclick="switchTab('inventory')" id="tab-inventory" class="flex-1 py-3 tab-inactive transition-all min-w-[80px]"><i class="fas fa-list mr-1"></i> Stock</button>
+            <button onclick="switchTab('sales')" id="tab-sales" class="flex-1 py-3 tab-inactive transition-all hidden min-w-[80px]"><i class="fas fa-chart-line mr-1"></i> Sales</button>
+            <button onclick="switchTab('admin')" id="tab-admin" class="flex-1 py-3 tab-inactive transition-all hidden min-w-[80px]"><i class="fas fa-shield-alt mr-1"></i> Admin</button>
         </nav>
 
         <main class="p-4 max-w-md mx-auto">
             
             <!-- SCANNER VIEW -->
             <div id="view-scanner" class="block">
+                <!-- Mode Toggle -->
+                <div class="flex justify-center mb-4 bg-gray-200 p-1 rounded-lg">
+                    <button id="modeCheckoutBtn" class="flex-1 py-2 rounded-md bg-white shadow text-blue-700 font-bold text-sm transition-all flex items-center justify-center">
+                        <i class="fas fa-shopping-cart mr-2"></i> POS Checkout
+                    </button>
+                    <button id="modeInventoryBtn" class="flex-1 py-2 rounded-md text-gray-500 font-bold text-sm transition-all flex items-center justify-center hover:text-gray-700">
+                        <i class="fas fa-box-open mr-2"></i> Add Stock
+                    </button>
+                </div>
+
                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-                    <p class="text-sm text-gray-500 mb-3 text-center">Point camera at a barcode to record item.</p>
+                    <div id="modeDescription" class="text-sm text-center mb-3 font-medium text-blue-600 bg-blue-50 p-2 rounded">
+                        Scanning will SELL items and deduct from inventory.
+                    </div>
                     <div id="reader" class="w-full rounded overflow-hidden mb-4 bg-black min-h-[250px]"></div>
                     <button id="startScanBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors text-lg flex justify-center items-center">
                         <i class="fas fa-camera mr-2"></i> Start Scanner
                     </button>
+                </div>
+
+                <!-- Manual Entry (Available in both modes now) -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+                    <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Manual Barcode Entry</h2>
+                    <div class="flex gap-2">
+                        <input type="text" id="manualBarcode" placeholder="Type barcode..." class="flex-1 border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500">
+                        <button id="manualSubmitBtn" class="bg-gray-800 hover:bg-gray-900 text-white px-5 py-3 rounded-lg font-semibold transition-colors">Submit</button>
+                    </div>
                 </div>
             </div>
 
@@ -99,14 +121,43 @@
                 </div>
             </div>
 
+            <!-- SALES / ANALYTICS VIEW -->
+            <div id="view-sales" class="hidden">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                        <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wider">Transaction Log</h2>
+                        <button id="exportSalesBtn" class="text-xs text-green-700 hover:text-green-900 bg-green-100 hover:bg-green-200 px-3 py-1.5 rounded font-semibold transition-colors">
+                            <i class="fas fa-download mr-1"></i> Export Sales
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-white text-xs text-gray-400 border-b">
+                                    <th class="p-3 font-semibold">Date/Time</th>
+                                    <th class="p-3 font-semibold">Item</th>
+                                    <th class="p-3 font-semibold">User</th>
+                                </tr>
+                            </thead>
+                            <tbody id="salesList" class="text-sm divide-y divide-gray-100 bg-white">
+                                <!-- Sales populate here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <!-- ADMIN VIEW -->
             <div id="view-admin" class="hidden">
-                <!-- Manual Entry (Admin Only) -->
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6 border-l-4 border-l-blue-500">
-                    <h2 class="text-sm font-bold text-blue-700 uppercase tracking-wider mb-3"><i class="fas fa-keyboard mr-1"></i> Manual Entry Override</h2>
-                    <div class="flex gap-2">
-                        <input type="text" id="manualBarcode" placeholder="Type barcode..." class="flex-1 border border-gray-300 rounded-lg p-3 focus:outline-none focus:border-blue-500">
-                        <button id="manualSubmitBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-lg font-semibold transition-colors">Add</button>
+                <!-- System Settings -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+                    <div class="p-4 bg-gray-50 border-b border-gray-200">
+                        <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wider"><i class="fas fa-cog mr-1"></i> System Settings</h2>
+                        <p class="text-xs text-gray-400 mt-1">Update the master pin used to access the admin dashboard.</p>
+                    </div>
+                    <div class="p-4 flex gap-2 bg-white">
+                        <input type="text" id="newAdminPin" placeholder="Enter new Admin PIN..." class="flex-1 border border-gray-300 rounded-lg p-2 text-sm focus:outline-none focus:border-blue-500 font-mono">
+                        <button id="updatePinBtn" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">Update PIN</button>
                     </div>
                 </div>
 
@@ -145,7 +196,7 @@
         </main>
     </div>
 
-    <!-- New Item Modal -->
+    <!-- New Item Modal (Only triggered in Inventory mode or if item missing) -->
     <div id="itemModal" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center p-4 z-50 backdrop-blur-sm transition-opacity">
         <div class="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
             <div class="flex items-center text-blue-600 mb-4">
@@ -177,7 +228,7 @@
     </div>
 
     <!-- Toast Notification -->
-    <div id="toast" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-full shadow-lg transition-opacity duration-300 opacity-0 pointer-events-none z-50 font-medium text-sm flex items-center">
+    <div id="toast" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-full shadow-lg transition-opacity duration-300 opacity-0 pointer-events-none z-50 font-medium text-sm flex items-center whitespace-nowrap">
         <i class="fas fa-info-circle mr-2 text-blue-400"></i>
         <span id="toastMsg">Message</span>
     </div>
@@ -185,10 +236,10 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, addDoc, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // *** ADMIN MASTER PIN *** 
-        const ADMIN_PIN = "12345"; 
+        let ADMIN_PIN = "12345"; 
 
         // Database Configuration
         const firebaseConfig = {
@@ -210,10 +261,13 @@
         let currentBarcode = null;
         let inventoryData = {};
         let studentData = {};
+        let salesData = [];
         
         let currentUserRole = null; 
         let currentUserName = null;
         let isFirebaseReady = false;
+        
+        let scanMode = 'checkout'; // Can be 'checkout' or 'inventory'
 
         signInAnonymously(auth).catch((error) => { console.error("Auth Error", error); });
 
@@ -224,16 +278,32 @@
                 statusLabel.textContent = "System Ready. Enter ID.";
                 statusLabel.className = "mt-4 text-sm text-green-600 h-5";
                 
+                // Config Listener (Listens for PIN changes)
+                onSnapshot(doc(db, "settings", "config"), (docSnap) => {
+                    if (docSnap.exists() && docSnap.data().adminPin) {
+                        ADMIN_PIN = docSnap.data().adminPin;
+                    }
+                });
+
+                // Inventory Listener
                 onSnapshot(collection(db, "inventory"), (snapshot) => {
                     inventoryData = {};
                     snapshot.forEach((doc) => { inventoryData[doc.id] = doc.data(); });
                     if(currentUserRole) renderInventory();
                 });
 
+                // Students Listener
                 onSnapshot(collection(db, "students"), (snapshot) => {
                     studentData = {};
                     snapshot.forEach((doc) => { studentData[doc.id] = doc.data(); });
                     if(currentUserRole === 'admin') renderStudents();
+                });
+                
+                // Sales Listener
+                onSnapshot(collection(db, "sales"), (snapshot) => {
+                    salesData = [];
+                    snapshot.forEach((doc) => { salesData.push({ id: doc.id, ...doc.data() }); });
+                    if(currentUserRole === 'admin') renderSales();
                 });
 
             } else {
@@ -284,10 +354,13 @@
             
             if (currentUserRole === 'admin') {
                 document.getElementById('tab-admin').classList.remove('hidden');
+                document.getElementById('tab-sales').classList.remove('hidden');
                 renderStudents();
+                renderSales();
             }
             
             renderInventory();
+            setScanMode('checkout'); // Default to POS when logging in
         }
 
         // --- Sign Out Logic ---
@@ -307,6 +380,7 @@
             document.getElementById('appScreen').classList.add('hidden');
             document.getElementById('loginScreen').classList.remove('hidden');
             document.getElementById('tab-admin').classList.add('hidden');
+            document.getElementById('tab-sales').classList.add('hidden');
             
             switchTab('scanner');
             showToast("Signed out successfully.");
@@ -321,14 +395,47 @@
                 });
             }
 
-            ['scanner', 'inventory', 'admin'].forEach(t => {
-                document.getElementById(`tab-${t}`).className = `flex-1 py-3 transition-all ${t === 'admin' && currentUserRole !== 'admin' ? 'hidden' : 'tab-inactive'}`;
-                document.getElementById(`view-${t}`).classList.add('hidden');
+            ['scanner', 'inventory', 'sales', 'admin'].forEach(t => {
+                const tabElement = document.getElementById(`tab-${t}`);
+                if (tabElement) {
+                    // Keep admin/sales hidden if not admin
+                    if ((t === 'admin' || t === 'sales') && currentUserRole !== 'admin') {
+                        tabElement.className = "hidden";
+                    } else {
+                        tabElement.className = `flex-1 py-3 transition-all min-w-[80px] tab-inactive`;
+                    }
+                }
+                
+                const viewElement = document.getElementById(`view-${t}`);
+                if (viewElement) viewElement.classList.add('hidden');
             });
 
-            document.getElementById(`tab-${tabName}`).className = "flex-1 py-3 tab-active transition-all";
+            document.getElementById(`tab-${tabName}`).className = "flex-1 py-3 transition-all min-w-[80px] tab-active";
             document.getElementById(`view-${tabName}`).classList.remove('hidden');
         };
+
+        // --- Mode Toggle Logic ---
+        function setScanMode(mode) {
+            scanMode = mode;
+            const checkoutBtn = document.getElementById('modeCheckoutBtn');
+            const inventoryBtn = document.getElementById('modeInventoryBtn');
+            const desc = document.getElementById('modeDescription');
+
+            if (mode === 'checkout') {
+                checkoutBtn.className = "flex-1 py-2 rounded-md bg-white shadow text-blue-700 font-bold text-sm transition-all flex items-center justify-center";
+                inventoryBtn.className = "flex-1 py-2 rounded-md text-gray-500 font-bold text-sm transition-all flex items-center justify-center hover:text-gray-700";
+                desc.textContent = "Scanning will SELL items and deduct from inventory.";
+                desc.className = "text-sm text-center mb-3 font-medium text-blue-700 bg-blue-50 p-2 rounded";
+            } else {
+                inventoryBtn.className = "flex-1 py-2 rounded-md bg-white shadow text-green-700 font-bold text-sm transition-all flex items-center justify-center";
+                checkoutBtn.className = "flex-1 py-2 rounded-md text-gray-500 font-bold text-sm transition-all flex items-center justify-center hover:text-gray-700";
+                desc.textContent = "Scanning will ADD +1 to the inventory quantity.";
+                desc.className = "text-sm text-center mb-3 font-medium text-green-700 bg-green-50 p-2 rounded";
+            }
+        }
+
+        document.getElementById('modeCheckoutBtn').addEventListener('click', () => setScanMode('checkout'));
+        document.getElementById('modeInventoryBtn').addEventListener('click', () => setScanMode('inventory'));
 
         // --- Admin: Student Management ---
         document.getElementById('addStudentBtn').addEventListener('click', async () => {
@@ -385,6 +492,40 @@
             }
         };
 
+        window.editStudentName = async function(id) {
+            const student = studentData[id];
+            if (!student) return;
+
+            const newName = prompt("Edit student name:", student.name);
+            
+            if (newName !== null && newName.trim() !== "") {
+                try {
+                    await setDoc(doc(db, "students", id), {
+                        ...student,
+                        name: newName.trim()
+                    });
+                    showToast("Student name updated!");
+                } catch (err) {
+                    showToast("Error updating name.");
+                }
+            }
+        };
+
+        document.getElementById('updatePinBtn').addEventListener('click', async () => {
+            const newPin = document.getElementById('newAdminPin').value.trim();
+            if (newPin.length < 4) {
+                showToast("PIN must be at least 4 characters.");
+                return;
+            }
+            try {
+                await setDoc(doc(db, "settings", "config"), { adminPin: newPin }, { merge: true });
+                document.getElementById('newAdminPin').value = '';
+                showToast("Admin PIN updated successfully!");
+            } catch (err) {
+                showToast("Error updating PIN.");
+            }
+        });
+
         function renderStudents() {
             const list = document.getElementById('studentList');
             list.innerHTML = '';
@@ -394,7 +535,10 @@
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td class="p-3">
-                        <div class="font-bold text-gray-800">${student.name}</div>
+                        <div class="font-bold text-gray-800 flex items-center">
+                            ${student.name}
+                            <button onclick="window.editStudentName('${student.id}')" class="text-blue-400 hover:text-blue-600 ml-2" title="Edit Name"><i class="fas fa-pencil-alt text-xs"></i></button>
+                        </div>
                     </td>
                     <td class="p-3 text-right">
                         <span class="bg-gray-100 border border-gray-200 text-gray-700 px-3 py-1 rounded font-mono font-bold tracking-wider">${student.id}</span>
@@ -419,23 +563,62 @@
 
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    await setDoc(docRef, {
-                        ...data,
-                        quantity: data.quantity + 1,
-                        lastUpdated: new Date().toISOString()
-                    });
-                    showToast(`+1 ${data.name} recorded!`);
-                    if (isScanning && scanner) scanner.resume();
+                    
+                    if (scanMode === 'checkout') {
+                        // POS CHECKOUT MODE
+                        if (data.quantity > 0) {
+                            // 1. Decrement Quantity
+                            await setDoc(docRef, {
+                                ...data,
+                                quantity: data.quantity - 1,
+                                lastUpdated: new Date().toISOString()
+                            });
+                            
+                            // 2. Record the Transaction in Sales Collection
+                            await addDoc(collection(db, "sales"), {
+                                barcode: barcode,
+                                name: data.name,
+                                category: data.category,
+                                points: data.points,
+                                user: currentUserName,
+                                timestamp: new Date().toISOString()
+                            });
+                            
+                            showToast(`✅ Sold: ${data.name}`);
+                        } else {
+                            showToast(`❌ Out of stock: ${data.name}`);
+                        }
+                        if (isScanning && scanner) scanner.resume();
+                        
+                    } else {
+                        // ADD INVENTORY MODE
+                        await setDoc(docRef, {
+                            ...data,
+                            quantity: data.quantity + 1,
+                            lastUpdated: new Date().toISOString()
+                        });
+                        showToast(`📦 +1 ${data.name} added!`);
+                        if (isScanning && scanner) scanner.resume();
+                    }
+                    
                 } else {
-                    currentBarcode = barcode;
-                    document.getElementById('modalBarcodeDisplay').textContent = barcode;
-                    document.getElementById('itemName').value = '';
-                    document.getElementById('itemCategory').value = '';
-                    document.getElementById('itemPoints').value = '';
-                    document.getElementById('itemModal').classList.remove('hidden');
-                    document.getElementById('itemModal').classList.add('flex');
+                    // Item not found. 
+                    if (scanMode === 'checkout') {
+                        showToast("⚠️ Barcode not found in inventory.");
+                        if (isScanning && scanner) scanner.resume();
+                    } else {
+                        // Prompt to add new item if in Inventory Mode
+                        currentBarcode = barcode;
+                        document.getElementById('modalBarcodeDisplay').textContent = barcode;
+                        document.getElementById('itemName').value = '';
+                        document.getElementById('itemCategory').value = '';
+                        document.getElementById('itemPoints').value = '';
+                        document.getElementById('itemModal').classList.remove('hidden');
+                        document.getElementById('itemModal').classList.add('flex');
+                    }
                 }
             } catch (err) {
+                console.error(err);
                 showToast("Database error.");
                 if (isScanning && scanner) scanner.resume();
             }
@@ -617,7 +800,7 @@
                     <td class="p-3">
                         <div class="flex items-center justify-end gap-1">
                             <button onclick="window.updateQuantity('${item.barcode}', -1)" class="w-7 h-7 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded flex items-center justify-center transition-colors"><i class="fas fa-minus text-xs"></i></button>
-                            <span class="font-bold text-gray-800 text-lg w-8 text-center">${item.quantity}</span>
+                            <span class="font-bold ${item.quantity === 0 ? 'text-red-500' : 'text-gray-800'} text-lg w-8 text-center">${item.quantity}</span>
                             <button onclick="window.updateQuantity('${item.barcode}', 1)" class="w-7 h-7 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded flex items-center justify-center transition-colors"><i class="fas fa-plus text-xs"></i></button>
                             ${deleteBtnHtml}
                         </div>
@@ -627,6 +810,43 @@
             });
         }
 
+        function renderSales() {
+            const list = document.getElementById('salesList');
+            list.innerHTML = '';
+            
+            // Sort by most recent timestamp first
+            const sortedSales = [...salesData].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+            
+            if(sortedSales.length === 0) {
+                list.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-400 text-sm">No transactions yet.</td></tr>`;
+                return;
+            }
+
+            sortedSales.forEach(sale => {
+                const tr = document.createElement('tr');
+                const dateObj = new Date(sale.timestamp);
+                const timeString = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const dateString = dateObj.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                
+                tr.innerHTML = `
+                    <td class="p-3">
+                        <div class="text-xs font-bold text-gray-700">${dateString}</div>
+                        <div class="text-xs text-gray-400">${timeString}</div>
+                    </td>
+                    <td class="p-3">
+                        <div class="font-bold text-gray-800 text-sm">${sale.name}</div>
+                        <div class="text-[10px] text-gray-400 font-mono">${sale.barcode}</div>
+                    </td>
+                    <td class="p-3">
+                        <div class="text-xs text-gray-600 truncate max-w-[80px]">${sale.user || 'Unknown'}</div>
+                        <div class="text-green-600 font-bold text-xs">${sale.points} pts</div>
+                    </td>
+                `;
+                list.appendChild(tr);
+            });
+        }
+
+        // Exporters
         document.getElementById('exportBtn').addEventListener('click', () => {
             const headers = ["Barcode", "Name", "Category", "Points", "Quantity"];
             let csvContent = headers.join(",") + "\n";
@@ -637,6 +857,21 @@
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
             link.download = "PBIS_Reward_Inventory.csv";
+            link.click();
+        });
+
+        document.getElementById('exportSalesBtn').addEventListener('click', () => {
+            const headers = ["Timestamp", "Barcode", "Item Name", "Category", "Points Value", "Sold By"];
+            let csvContent = headers.join(",") + "\n";
+            const sortedSales = [...salesData].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+            
+            sortedSales.forEach(sale => {
+                csvContent += `"${sale.timestamp}",${sale.barcode},"${sale.name}","${sale.category || 'N/A'}",${sale.points},"${sale.user || 'Unknown'}"\n`;
+            });
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `PBIS_Sales_Log_${new Date().toISOString().split('T')[0]}.csv`;
             link.click();
         });
 
