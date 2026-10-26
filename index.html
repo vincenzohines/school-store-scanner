@@ -26,7 +26,7 @@
             <h1 class="text-2xl font-bold text-gray-800 mb-1">PBIS Store</h1>
             <p class="text-sm text-gray-500 mb-8">Enter your Private ID to continue</p>
             
-            <input type="password" id="loginInput" class="w-full border-2 border-gray-200 rounded-xl p-4 text-center text-2xl tracking-widest font-mono mb-4 focus:outline-none focus:border-blue-500 transition-colors" placeholder="•••••">
+            <input type="password" id="loginInput" class="w-full border-2 border-gray-200 rounded-xl p-4 text-center text-2xl tracking-widest font-mono mb-4 focus:outline-none focus:border-blue-500 transition-colors" placeholder="••••">
             
             <button id="loginBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-md transition-colors text-lg flex justify-center items-center">
                 Sign In <i class="fas fa-arrow-right ml-2"></i>
@@ -227,6 +227,22 @@
         </div>
     </div>
 
+    <!-- Custom Modal UI (Replaces prompt/confirm) -->
+    <div id="customModal" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center p-4 z-[60] backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <div class="flex items-center text-blue-600 mb-4">
+                <i class="fas fa-edit text-2xl mr-2"></i>
+                <h2 id="customModalTitle" class="text-xl font-bold text-gray-800">Prompt</h2>
+            </div>
+            <p id="customModalMessage" class="text-sm text-gray-500 mb-4"></p>
+            <input type="text" id="customModalInput" class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:border-blue-500 mb-4 hidden font-mono">
+            <div class="flex gap-3 mt-4">
+                <button id="customModalCancel" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-lg font-bold transition-colors">Cancel</button>
+                <button id="customModalConfirm" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-bold shadow-md transition-colors">Confirm</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <div id="toast" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-full shadow-lg transition-opacity duration-300 opacity-0 pointer-events-none z-50 font-medium text-sm flex items-center whitespace-nowrap">
         <i class="fas fa-info-circle mr-2 text-blue-400"></i>
@@ -239,7 +255,7 @@
         import { getFirestore, doc, getDoc, setDoc, addDoc, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // *** ADMIN MASTER PIN *** 
-        let ADMIN_PIN = "12345"; 
+        let ADMIN_PIN = "1234"; 
 
         // Database Configuration
         const firebaseConfig = {
@@ -437,13 +453,47 @@
         document.getElementById('modeCheckoutBtn').addEventListener('click', () => setScanMode('checkout'));
         document.getElementById('modeInventoryBtn').addEventListener('click', () => setScanMode('inventory'));
 
+        // --- Custom Modal Logic ---
+        let customModalCallback = null;
+        function showCustomModal(title, message, isPrompt, defaultValue, callback) {
+            document.getElementById('customModal').classList.remove('hidden');
+            document.getElementById('customModal').classList.add('flex');
+            document.getElementById('customModalTitle').textContent = title;
+            document.getElementById('customModalMessage').textContent = message;
+            
+            const input = document.getElementById('customModalInput');
+            if (isPrompt) {
+                input.classList.remove('hidden');
+                input.value = defaultValue || '';
+                setTimeout(() => input.focus(), 100);
+            } else {
+                input.classList.add('hidden');
+            }
+            customModalCallback = callback;
+        }
+
+        document.getElementById('customModalCancel').addEventListener('click', () => {
+            document.getElementById('customModal').classList.add('hidden');
+            document.getElementById('customModal').classList.remove('flex');
+            if (customModalCallback) customModalCallback(null);
+        });
+
+        document.getElementById('customModalConfirm').addEventListener('click', () => {
+            document.getElementById('customModal').classList.add('hidden');
+            document.getElementById('customModal').classList.remove('flex');
+            const inputVal = document.getElementById('customModalInput').value;
+            if (customModalCallback) customModalCallback(inputVal);
+        });
+
+
         // --- Admin: Student Management ---
         document.getElementById('addStudentBtn').addEventListener('click', async () => {
             const nameInput = document.getElementById('newStudentName');
             const name = nameInput.value.trim();
             if (!name) return;
 
-            const privateId = Math.floor(10000 + Math.random() * 90000).toString();
+            // Generate 4-digit PIN
+            const privateId = Math.floor(1000 + Math.random() * 9000).toString();
             
             await setDoc(doc(db, "students", privateId), {
                 id: privateId, name: name, addedOn: new Date().toISOString()
@@ -469,7 +519,8 @@
 
             let addedCount = 0;
             for (const name of lines) {
-                let privateId = Math.floor(10000 + Math.random() * 90000).toString();
+                // Generate 4-digit PIN
+                let privateId = Math.floor(1000 + Math.random() * 9000).toString();
                 
                 await setDoc(doc(db, "students", privateId), {
                     id: privateId,
@@ -486,35 +537,65 @@
         });
 
         window.deleteStudent = async function(id) {
-            if (confirm("Revoke this student's access?")) {
-                await deleteDoc(doc(db, "students", id));
-                showToast("Access revoked.");
-            }
+            showCustomModal("Revoke Access", "Revoke this student's access?", false, null, async (res) => {
+                if (res !== null) {
+                    await deleteDoc(doc(db, "students", id));
+                    showToast("Access revoked.");
+                }
+            });
         };
 
         window.editStudentName = async function(id) {
             const student = studentData[id];
             if (!student) return;
 
-            const newName = prompt("Edit student name:", student.name);
-            
-            if (newName !== null && newName.trim() !== "") {
-                try {
-                    await setDoc(doc(db, "students", id), {
-                        ...student,
-                        name: newName.trim()
-                    });
-                    showToast("Student name updated!");
-                } catch (err) {
-                    showToast("Error updating name.");
+            showCustomModal("Edit Student", "Edit student name:", true, student.name, async (newName) => {
+                if (newName !== null && newName.trim() !== "") {
+                    try {
+                        await setDoc(doc(db, "students", id), {
+                            ...student,
+                            name: newName.trim()
+                        });
+                        showToast("Student name updated!");
+                    } catch (err) {
+                        showToast("Error updating name.");
+                    }
                 }
-            }
+            });
+        };
+
+        window.editStudentPin = async function(oldId) {
+            showCustomModal("Edit PIN", "Enter a new 4-digit PIN:", true, oldId, async (newId) => {
+                if (newId === null || newId.trim() === "" || newId === oldId) return;
+                
+                const trimmedId = newId.trim();
+                if (!/^\d{4}$/.test(trimmedId)) {
+                    showToast("PIN must be exactly 4 digits.");
+                    return;
+                }
+
+                try {
+                    const newRef = doc(db, "students", trimmedId);
+                    const newSnap = await getDoc(newRef);
+                    if (newSnap.exists()) {
+                        showToast("That PIN is already in use.");
+                        return;
+                    }
+
+                    const student = studentData[oldId];
+                    await setDoc(newRef, { ...student, id: trimmedId });
+                    await deleteDoc(doc(db, "students", oldId));
+                    showToast("Student PIN updated!");
+                } catch (err) {
+                    showToast("Error updating PIN.");
+                }
+            });
         };
 
         document.getElementById('updatePinBtn').addEventListener('click', async () => {
             const newPin = document.getElementById('newAdminPin').value.trim();
-            if (newPin.length < 4) {
-                showToast("PIN must be at least 4 characters.");
+            if (!/^\d{4}$/.test(newPin)) {
+                showToast("Admin PIN must be exactly 4 digits.");
                 return;
             }
             try {
@@ -541,7 +622,10 @@
                         </div>
                     </td>
                     <td class="p-3 text-right">
-                        <span class="bg-gray-100 border border-gray-200 text-gray-700 px-3 py-1 rounded font-mono font-bold tracking-wider">${student.id}</span>
+                        <div class="flex items-center justify-end gap-2">
+                            <span class="bg-gray-100 border border-gray-200 text-gray-700 px-3 py-1 rounded font-mono font-bold tracking-wider">${student.id}</span>
+                            <button onclick="window.editStudentPin('${student.id}')" class="text-blue-400 hover:text-blue-600" title="Edit PIN"><i class="fas fa-pencil-alt text-xs"></i></button>
+                        </div>
                     </td>
                     <td class="p-3 text-right w-12">
                         <button onclick="window.deleteStudent('${student.id}')" class="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 w-8 h-8 rounded-full inline-flex items-center justify-center transition-colors">
@@ -682,20 +766,20 @@
             const item = inventoryData[barcode];
             if (!item) return;
 
-            const newName = prompt("Edit item name:", item.name);
-            
-            if (newName !== null && newName.trim() !== "") {
-                try {
-                    await setDoc(doc(db, "inventory", barcode), {
-                        ...item,
-                        name: newName.trim(),
-                        lastUpdated: new Date().toISOString()
-                    });
-                    showToast("Name updated!");
-                } catch (err) {
-                    showToast("Error updating name.");
+            showCustomModal("Edit Reward", "Edit item name:", true, item.name, async (newName) => {
+                if (newName !== null && newName.trim() !== "") {
+                    try {
+                        await setDoc(doc(db, "inventory", barcode), {
+                            ...item,
+                            name: newName.trim(),
+                            lastUpdated: new Date().toISOString()
+                        });
+                        showToast("Name updated!");
+                    } catch (err) {
+                        showToast("Error updating name.");
+                    }
                 }
-            }
+            });
         };
 
         // Edit Points Function (Admin Only)
@@ -705,34 +789,36 @@
             const item = inventoryData[barcode];
             if (!item) return;
 
-            const newPoints = prompt("Edit points value:", item.points);
-            
-            if (newPoints !== null && newPoints.trim() !== "") {
-                const parsedPoints = parseInt(newPoints);
-                if (!isNaN(parsedPoints)) {
-                    try {
-                        await setDoc(doc(db, "inventory", barcode), {
-                            ...item,
-                            points: parsedPoints,
-                            lastUpdated: new Date().toISOString()
-                        });
-                        showToast("Points updated!");
-                    } catch (err) {
-                        showToast("Error updating points.");
+            showCustomModal("Edit Points", "Edit points value:", true, item.points.toString(), async (newPoints) => {
+                if (newPoints !== null && newPoints.trim() !== "") {
+                    const parsedPoints = parseInt(newPoints);
+                    if (!isNaN(parsedPoints)) {
+                        try {
+                            await setDoc(doc(db, "inventory", barcode), {
+                                ...item,
+                                points: parsedPoints,
+                                lastUpdated: new Date().toISOString()
+                            });
+                            showToast("Points updated!");
+                        } catch (err) {
+                            showToast("Error updating points.");
+                        }
+                    } else {
+                        showToast("Invalid points value. Use numbers only.");
                     }
-                } else {
-                    showToast("Invalid points value. Use numbers only.");
                 }
-            }
+            });
         };
 
         // Global Delete (Admin Only)
         window.deleteItem = async function(barcode) {
             if (currentUserRole !== 'admin') return;
-            if (confirm("Permanently delete this reward?")) {
-                await deleteDoc(doc(db, "inventory", barcode));
-                showToast("Reward deleted!");
-            }
+            showCustomModal("Delete Reward", "Permanently delete this reward?", false, null, async (res) => {
+                if (res !== null) {
+                    await deleteDoc(doc(db, "inventory", barcode));
+                    showToast("Reward deleted!");
+                }
+            });
         };
 
         // Scanner initialization
