@@ -85,7 +85,7 @@
                     </button>
                 </div>
 
-                <!-- Manual Entry (Available in both modes now) -->
+                <!-- Manual Entry -->
                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
                     <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Manual Barcode Entry</h2>
                     <div class="flex gap-2">
@@ -136,7 +136,7 @@
                                 <tr class="bg-white text-xs text-gray-400 border-b">
                                     <th class="p-3 font-semibold">Date/Time</th>
                                     <th class="p-3 font-semibold">Item</th>
-                                    <th class="p-3 font-semibold">User</th>
+                                    <th class="p-3 font-semibold">User / Action</th>
                                 </tr>
                             </thead>
                             <tbody id="salesList" class="text-sm divide-y divide-gray-100 bg-white">
@@ -196,7 +196,7 @@
         </main>
     </div>
 
-    <!-- New Item Modal (Only triggered in Inventory mode or if item missing) -->
+    <!-- New Item Modal -->
     <div id="itemModal" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center p-4 z-50 backdrop-blur-sm transition-opacity">
         <div class="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
             <div class="flex items-center text-blue-600 mb-4">
@@ -821,6 +821,37 @@
             });
         };
 
+        // --- NEW: Void Sale Function (Admin Only) ---
+        window.deleteSale = async function(saleId, barcode) {
+            if (currentUserRole !== 'admin') return;
+            showCustomModal("Void Sale", "Delete this transaction and refund item to inventory?", false, null, async (res) => {
+                if (res !== null) {
+                    try {
+                        // 1. Delete the sale document
+                        await deleteDoc(doc(db, "sales", saleId));
+                        
+                        // 2. Add the quantity back to inventory
+                        const itemRef = doc(db, "inventory", barcode);
+                        const itemSnap = await getDoc(itemRef);
+                        
+                        if (itemSnap.exists()) {
+                            const itemData = itemSnap.data();
+                            await setDoc(itemRef, {
+                                ...itemData,
+                                quantity: itemData.quantity + 1,
+                                lastUpdated: new Date().toISOString()
+                            });
+                        }
+                        
+                        showToast("Sale voided & item refunded!");
+                    } catch (err) {
+                        showToast("Error deleting sale.");
+                        console.error(err);
+                    }
+                }
+            });
+        };
+
         // Scanner initialization
         function resetScannerBtn() {
             const btn = document.getElementById('startScanBtn');
@@ -914,6 +945,11 @@
                 const timeString = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 const dateString = dateObj.toLocaleDateString([], { month: 'short', day: 'numeric' });
                 
+                // Add Delete Button if Admin
+                const deleteSaleBtnHtml = currentUserRole === 'admin'
+                    ? `<button onclick="window.deleteSale('${sale.id}', '${sale.barcode}')" class="text-red-400 hover:text-red-600 ml-3 bg-red-50 hover:bg-red-100 w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center transition-colors" title="Void Sale"><i class="fas fa-trash-alt text-xs"></i></button>`
+                    : '';
+                
                 tr.innerHTML = `
                     <td class="p-3">
                         <div class="text-xs font-bold text-gray-700">${dateString}</div>
@@ -923,9 +959,14 @@
                         <div class="font-bold text-gray-800 text-sm">${sale.name}</div>
                         <div class="text-[10px] text-gray-400 font-mono">${sale.barcode}</div>
                     </td>
-                    <td class="p-3">
-                        <div class="text-xs text-gray-600 truncate max-w-[80px]">${sale.user || 'Unknown'}</div>
-                        <div class="text-green-600 font-bold text-xs">${sale.points} pts</div>
+                    <td class="p-3 text-right">
+                        <div class="flex items-center justify-end">
+                            <div>
+                                <div class="text-xs text-gray-600 truncate max-w-[80px]">${sale.user || 'Unknown'}</div>
+                                <div class="text-green-600 font-bold text-xs">${sale.points} pts</div>
+                            </div>
+                            ${deleteSaleBtnHtml}
+                        </div>
                     </td>
                 `;
                 list.appendChild(tr);
